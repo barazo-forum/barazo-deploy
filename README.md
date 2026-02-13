@@ -1,14 +1,14 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/atgora-forum/.github/main/assets/logo-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/atgora-forum/.github/main/assets/logo-light.svg">
-  <img alt="ATgora Logo" src="https://raw.githubusercontent.com/atgora-forum/.github/main/assets/logo-dark.svg" width="120">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-light.svg">
+  <img alt="Barazo Logo" src="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-dark.svg" width="120">
 </picture>
 
-# atgora-deploy
+# barazo-deploy
 
-**Docker Compose templates for self-hosting ATgora**
+**Docker Compose templates for self-hosting Barazo**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -18,7 +18,7 @@
 
 ## 🚧 Status: Pre-Alpha Development
 
-Self-hosting deployment templates for ATgora forums.
+Self-hosting deployment templates for Barazo forums.
 
 **Current phase:** Planning complete, templates coming Q2 2026
 
@@ -26,7 +26,7 @@ Self-hosting deployment templates for ATgora forums.
 
 ## What is this?
 
-The atgora-deploy repo provides everything you need to self-host an ATgora forum:
+The barazo-deploy repo provides everything you need to self-host a Barazo forum:
 
 - **Docker Compose files** - Single-forum, global aggregator, staging configs
 - **Environment templates** - `.env.example` with all variables documented
@@ -42,7 +42,7 @@ The atgora-deploy repo provides everything you need to self-host an ATgora forum
 | Profile | Use Case | File |
 |---------|----------|------|
 | **Single Forum** | One community forum | `docker-compose.yml` |
-| **Global Aggregator** | Cross-forum feed (atgora.forum) | `docker-compose.global.yml` |
+| **Global Aggregator** | Cross-forum feed (barazo.forum) | `docker-compose.global.yml` |
 | **Development** | Local development (DB only) | `docker-compose.dev.yml` |
 | **Staging** | Integration testing | `docker-compose.staging.yml` |
 
@@ -57,8 +57,8 @@ The atgora-deploy repo provides everything you need to self-host an ATgora forum
 
 **Deploy:**
 ```bash
-git clone https://github.com/atgora-forum/atgora-deploy.git
-cd atgora-deploy
+git clone https://github.com/barazo-forum/barazo-deploy.git
+cd barazo-deploy
 
 # Configure
 cp .env.example .env
@@ -80,8 +80,8 @@ SSL certificates are automatic via Caddy.
 ## What's Included
 
 **Services:**
-- `atgora-api` - Backend AppView
-- `atgora-web` - Frontend
+- `barazo-api` - Backend AppView
+- `barazo-web` - Frontend
 - `postgres` - PostgreSQL 16 + pgvector
 - `valkey` - Cache
 - `caddy` - Reverse proxy + automatic SSL
@@ -135,7 +135,7 @@ Database migrations run automatically on API startup.
 
 Backs up PostgreSQL to `backups/` directory. Configure cron:
 ```bash
-0 2 * * * /path/to/atgora-deploy/scripts/backup.sh
+0 2 * * * /path/to/barazo-deploy/scripts/backup.sh
 ```
 
 ---
@@ -159,7 +159,7 @@ Don't want to self-host? Managed hosting available (Phase 3):
 - Custom domain support
 - EU hosting (GDPR-compliant)
 
-See [atgora.forum/pricing](https://atgora.forum/pricing) (coming soon)
+See [barazo.forum/pricing](https://barazo.forum/pricing) (coming soon)
 
 ---
 
@@ -171,18 +171,18 @@ See [atgora.forum/pricing](https://atgora.forum/pricing) (coming soon)
 
 ## Related Repositories
 
-- **[atgora-api](https://github.com/atgora-forum/atgora-api)** - Backend (AGPL-3.0)
-- **[atgora-web](https://github.com/atgora-forum/atgora-web)** - Frontend (MIT)
-- **[Organization](https://github.com/atgora-forum)** - All repos
+- **[barazo-api](https://github.com/barazo-forum/barazo-api)** - Backend (AGPL-3.0)
+- **[barazo-web](https://github.com/barazo-forum/barazo-web)** - Frontend (MIT)
+- **[Organization](https://github.com/barazo-forum)** - All repos
 
 ---
 
 ## Community
 
-- 🌐 **Website:** [atgora.forum](https://atgora.forum) (coming soon)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/orgs/atgora-forum/discussions)
-- 🐛 **Issues:** [Report bugs](https://github.com/atgora-forum/atgora-deploy/issues)
+- 🌐 **Website:** [barazo.forum](https://barazo.forum) (coming soon)
+- 💬 **Discussions:** [GitHub Discussions](https://github.com/orgs/barazo-forum/discussions)
+- 🐛 **Issues:** [Report bugs](https://github.com/barazo-forum/barazo-deploy/issues)
 
 ---
 
-© 2026 ATgora. Licensed under MIT.
+© 2026 Barazo. Licensed under MIT.
