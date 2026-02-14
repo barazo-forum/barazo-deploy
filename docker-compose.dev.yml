@@ -1,0 +1,58 @@
+# Barazo Development Docker Compose
+#
+# Infrastructure services for local development of barazo-api and barazo-web.
+# Does NOT include the API or web containers (run those with pnpm dev:api / dev:web).
+#
+# Usage:
+#   cp .env.example .env.dev
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Services: PostgreSQL 16 (pgvector), Valkey 8, Tap (AT Protocol firehose)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-barazo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-barazo_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-barazo}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-barazo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "${VALKEY_PORT:-6379}:6379"
+    volumes:
+      - valkeydata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  tap:
+    image: ghcr.io/bluesky-social/indigo/tap:latest
+    platform: linux/amd64
+    ports:
+      - "${TAP_PORT:-2480}:2480"
+    environment:
+      TAP_RELAY_URL: ${TAP_RELAY_URL:-https://bsky.network}
+      TAP_SIGNAL_COLLECTION: forum.barazo.topic.post
+      TAP_COLLECTION_FILTERS: forum.barazo.topic.post,forum.barazo.topic.reply,forum.barazo.interaction.reaction
+      TAP_DATABASE_URL: sqlite:///data/tap.db
+      TAP_ADMIN_PASSWORD: ${TAP_ADMIN_PASSWORD:-tap_dev_secret}
+    volumes:
+      - tapdata:/data
+
+volumes:
+  pgdata:
+  valkeydata:
+  tapdata:
