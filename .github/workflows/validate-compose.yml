@@ -14,7 +14,7 @@ jobs:
     name: Validate Docker Compose
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate dev compose
         run: docker compose -f docker-compose.dev.yml config --quiet
