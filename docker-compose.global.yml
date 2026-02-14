@@ -1,0 +1,44 @@
+# Barazo Global Aggregator -- Docker Compose Override
+#
+# Extends docker-compose.yml for global aggregator mode.
+# The aggregator indexes ALL Barazo communities across the network.
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit .env: set COMMUNITY_MODE=global, increase resource allocation
+#   docker compose -f docker-compose.yml -f docker-compose.global.yml up -d
+#
+# Minimum requirements: 4 vCPU, 8 GB RAM, 100 GB SSD
+# See README.md "Global Aggregator" section for details.
+
+services:
+  # Override API to global mode
+  barazo-api:
+    environment:
+      COMMUNITY_MODE: global
+    # Higher resource limits for indexing all communities
+    mem_limit: 2g
+    cpus: 2.0
+
+  # Larger database for cross-community data
+  postgres:
+    mem_limit: 4g
+    cpus: 2.0
+    # Tune PostgreSQL for higher load
+    command: >
+      postgres
+      -c shared_buffers=1GB
+      -c effective_cache_size=3GB
+      -c work_mem=16MB
+      -c maintenance_work_mem=256MB
+      -c max_connections=200
+
+  # Larger cache for cross-community queries
+  valkey:
+    mem_limit: 1g
+    cpus: 0.5
+
+  # Tap handles full network firehose (higher resource usage)
+  tap:
+    mem_limit: 1g
+    cpus: 1.0

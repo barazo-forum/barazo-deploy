@@ -25,8 +25,8 @@ Docker Compose configurations and documentation for running Barazo -- a federate
 | Profile | Use Case | File | Status |
 |---------|----------|------|--------|
 | **Development** | Local dev (infrastructure only) | `docker-compose.dev.yml` | Available |
-| **Single Forum** | One community, production | `docker-compose.yml` | Planned |
-| **Global Aggregator** | Cross-community aggregator | `docker-compose.global.yml` | Planned |
+| **Single Forum** | One community, production | `docker-compose.yml` | Available |
+| **Global Aggregator** | Cross-community aggregator | `docker-compose.global.yml` | Available |
 
 ---
 
@@ -171,7 +171,82 @@ docker compose -f docker-compose.dev.yml logs postgres
 
 ## Production Deployment
 
-Production Docker Compose with Caddy SSL, two-network segmentation, and health checks will be added in a future release.
+Deploy a single Barazo community with automatic SSL via Caddy.
+
+### Quick Start (Production)
+
+```bash
+git clone https://github.com/barazo-forum/barazo-deploy.git
+cd barazo-deploy
+
+# Configure
+cp .env.example .env
+nano .env  # Set domain, passwords, community DID, etc.
+
+# Start
+docker compose up -d
+
+# Verify
+docker compose ps        # All services should be "healthy"
+docker compose logs -f   # Watch startup logs
+```
+
+Your forum will be available at `https://your-domain.com` once Caddy obtains the SSL certificate (automatic via Let's Encrypt).
+
+### Production Services
+
+| Service | Image | Network | Purpose |
+|---------|-------|---------|---------|
+| **caddy** | `caddy:2-alpine` | frontend | Reverse proxy, automatic SSL (only exposed service: ports 80, 443) |
+| **barazo-api** | `ghcr.io/barazo-forum/barazo-api` | frontend + backend | AppView backend (Fastify, REST API, firehose indexing) |
+| **barazo-web** | `ghcr.io/barazo-forum/barazo-web` | frontend | Next.js frontend |
+| **postgres** | `pgvector/pgvector:pg16` | backend | PostgreSQL 16 with pgvector |
+| **valkey** | `valkey/valkey:8-alpine` | backend | Redis-compatible cache |
+| **tap** | `ghcr.io/bluesky-social/indigo/tap` | backend | AT Protocol firehose consumer |
+
+Two-network segmentation: PostgreSQL and Valkey are on the `backend` network only, unreachable from Caddy or the frontend.
+
+### Headless API (No Frontend)
+
+To run without the frontend container (e.g., custom frontend or API-only access):
+
+```bash
+docker compose up -d postgres valkey tap caddy barazo-api
+```
+
+Update the Caddyfile to remove or adjust the frontend route as needed.
+
+---
+
+## Global Aggregator
+
+The global aggregator indexes **all** Barazo communities across the AT Protocol network. It uses the same codebase as a single community but with different configuration and higher resource allocation.
+
+### Differences from Single Community
+
+| Aspect | Single Community | Global Aggregator |
+|--------|-----------------|-------------------|
+| `COMMUNITY_MODE` | `single` | `global` |
+| Indexes | One community's records | All `forum.barazo.*` records network-wide |
+| Features | Standard forum | Cross-community search, reputation aggregation |
+| PostgreSQL | 1 GB RAM | 4 GB RAM (more data) |
+| API | 1 GB RAM | 2 GB RAM (more indexing) |
+| Minimum server | 2 vCPU / 4 GB RAM | 4 vCPU / 8 GB RAM |
+
+### Quick Start (Global Aggregator)
+
+```bash
+cp .env.example .env
+nano .env  # Set COMMUNITY_MODE=global, domain, passwords
+
+# Start with the global override
+docker compose -f docker-compose.yml -f docker-compose.global.yml up -d
+```
+
+The global override file (`docker-compose.global.yml`) layers on top of the production compose to:
+- Set `COMMUNITY_MODE=global` on the API
+- Apply PostgreSQL performance tuning (`shared_buffers`, `effective_cache_size`, `work_mem`)
+- Set higher memory and CPU limits on all services
 
 ### Minimum Requirements
 
