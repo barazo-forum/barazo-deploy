@@ -8,7 +8,7 @@
 
 # barazo-deploy
 
-**Docker Compose templates for self-hosting Barazo**
+**Docker Compose templates for deploying Barazo**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -16,173 +16,187 @@
 
 ---
 
-## 🚧 Status: Pre-Alpha Development
-
-Self-hosting deployment templates for Barazo forums.
-
-**Current phase:** Planning complete, templates coming Q2 2026
-
----
-
 ## What is this?
 
-The barazo-deploy repo provides everything you need to self-host a Barazo forum:
+Docker Compose configurations and documentation for running Barazo -- a federated forum on the AT Protocol.
 
-- **Docker Compose files** - Single-forum, global aggregator, staging configs
-- **Environment templates** - `.env.example` with all variables documented
-- **Setup scripts** - Database initialization, backups, migrations
-- **Documentation** - Installation guide, upgrade guide, troubleshooting
+**Available profiles:**
 
-**Goal:** `docker compose up` gets a working forum in 5 minutes.
-
----
-
-## Deployment Profiles
-
-| Profile | Use Case | File |
-|---------|----------|------|
-| **Single Forum** | One community forum | `docker-compose.yml` |
-| **Global Aggregator** | Cross-forum feed (barazo.forum) | `docker-compose.global.yml` |
-| **Development** | Local development (DB only) | `docker-compose.dev.yml` |
-| **Staging** | Integration testing | `docker-compose.staging.yml` |
+| Profile | Use Case | File | Status |
+|---------|----------|------|--------|
+| **Development** | Local dev (infrastructure only) | `docker-compose.dev.yml` | Available |
+| **Single Forum** | One community, production | `docker-compose.yml` | Planned |
+| **Global Aggregator** | Cross-community aggregator | `docker-compose.global.yml` | Planned |
 
 ---
 
-## Quick Start
+## Development Setup
 
-**Prerequisites:**
-- Docker + Docker Compose
-- Domain pointing to your server
-- 4 GB RAM minimum
+The dev compose provides infrastructure services for local development of `barazo-api` and `barazo-web`. It does **not** include the API or web containers -- run those separately with `pnpm dev:api` / `pnpm dev:web`.
 
-**Deploy:**
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) (v24+) with Docker Compose v2
+- [Node.js](https://nodejs.org/) 24 LTS and [pnpm](https://pnpm.io/) (for running API/web locally)
+
+### Services
+
+| Service | Image | Port | Purpose |
+|---------|-------|------|---------|
+| **postgres** | `pgvector/pgvector:pg16` | 5432 | PostgreSQL 16 with pgvector for full-text and semantic search |
+| **valkey** | `valkey/valkey:8-alpine` | 6379 | Redis-compatible cache for sessions, rate limiting, queues |
+| **tap** | `ghcr.io/bluesky-social/indigo/tap:latest` | 2480 | AT Protocol firehose consumer (filters `forum.barazo.*` records) |
+
+### Quick Start
+
 ```bash
-git clone https://github.com/barazo-forum/barazo-deploy.git
+# Clone the deploy repo (or use from monorepo workspace)
 cd barazo-deploy
 
-# Configure
-cp .env.example .env
-nano .env  # Edit forum name, domain, etc.
+# Copy environment template
+cp .env.example .env.dev
 
-# Start
-docker compose up -d
+# Start infrastructure
+docker compose -f docker-compose.dev.yml up -d
 
-# Verify
-docker compose logs -f
+# Verify all services are healthy
+docker compose -f docker-compose.dev.yml ps
 ```
 
-Your forum will be available at `https://your-domain.com`
+All three services should show `healthy` status within 30 seconds.
 
-SSL certificates are automatic via Caddy.
+### From the Monorepo Workspace
+
+If using the pnpm workspace at `~/Documents/Git/barazo-forum/`:
+
+```bash
+# Start infrastructure (references barazo-deploy/docker-compose.dev.yml)
+pnpm dev:infra
+
+# Stop infrastructure
+pnpm dev:infra:down
+
+# View logs
+pnpm dev:infra:logs
+```
+
+### Common Commands
+
+```bash
+# Start all services
+docker compose -f docker-compose.dev.yml up -d
+
+# Stop all services (preserves data)
+docker compose -f docker-compose.dev.yml down
+
+# Stop and remove all data volumes
+docker compose -f docker-compose.dev.yml down -v
+
+# View logs (all services)
+docker compose -f docker-compose.dev.yml logs -f
+
+# View logs (single service)
+docker compose -f docker-compose.dev.yml logs -f postgres
+
+# Restart a single service
+docker compose -f docker-compose.dev.yml restart valkey
+
+# Connect to PostgreSQL
+docker compose -f docker-compose.dev.yml exec postgres psql -U barazo
+```
+
+### Environment Variables
+
+All variables have sensible defaults for development. Override them in `.env.dev`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_USER` | `barazo` | PostgreSQL superuser name |
+| `POSTGRES_PASSWORD` | `barazo_dev` | PostgreSQL superuser password |
+| `POSTGRES_DB` | `barazo` | Database name |
+| `POSTGRES_PORT` | `5432` | Host port for PostgreSQL |
+| `VALKEY_PORT` | `6379` | Host port for Valkey |
+| `TAP_RELAY_URL` | `https://bsky.network` | AT Protocol relay URL |
+| `TAP_PORT` | `2480` | Host port for Tap admin API |
+| `TAP_ADMIN_PASSWORD` | `tap_dev_secret` | Tap admin API password |
+
+See [`.env.example`](.env.example) for the full list including production variables.
+
+### Troubleshooting
+
+**Port already in use:**
+
+If port 5432, 6379, or 2480 is occupied, change the host port mapping in `.env.dev`:
+
+```bash
+POSTGRES_PORT=5433
+VALKEY_PORT=6380
+TAP_PORT=2481
+```
+
+**PostgreSQL won't start:**
+
+Check if an existing volume has incompatible data:
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.dev.yml up -d
+```
+
+Warning: `-v` deletes all data. Back up first if needed.
+
+**Tap fails on Apple Silicon:**
+
+Tap uses `platform: linux/amd64`. Docker Desktop on Apple Silicon runs it via Rosetta emulation. If it crashes:
+
+1. Verify Docker Desktop has Rosetta enabled (Settings > General > "Use Rosetta")
+2. Restart Docker Desktop
+3. Try again: `docker compose -f docker-compose.dev.yml up -d tap`
+
+**Containers start but API can't connect:**
+
+Verify the services are healthy:
+
+```bash
+docker compose -f docker-compose.dev.yml ps
+```
+
+If a service shows `starting` or `unhealthy`, check its logs:
+
+```bash
+docker compose -f docker-compose.dev.yml logs postgres
+```
 
 ---
 
-## What's Included
+## Production Deployment
 
-**Services:**
-- `barazo-api` - Backend AppView
-- `barazo-web` - Frontend
-- `postgres` - PostgreSQL 16 + pgvector
-- `valkey` - Cache
-- `caddy` - Reverse proxy + automatic SSL
+Production Docker Compose with Caddy SSL, two-network segmentation, and health checks will be added in a future release.
 
-**Volumes (persistent data):**
-- PostgreSQL data
-- Caddy SSL certificates
-- Valkey cache (optional persistence)
-
-**Networking:**
-- Only Caddy exposed externally (ports 80, 443)
-- Internal network for all other services
-
----
-
-## Minimum Requirements
+### Minimum Requirements
 
 | Deployment | CPU | RAM | Storage | Bandwidth |
 |------------|-----|-----|---------|-----------|
 | **Single Forum** | 2 vCPU | 4 GB | 20 GB SSD | 1 TB/month |
 | **Global Aggregator** | 4 vCPU | 8 GB | 100 GB SSD | 5 TB/month |
 
-**Recommended VPS:** Hetzner CX22 (€5.83/month) or higher
-
----
-
-## Upgrading
-
-```bash
-# Pull latest images
-docker compose pull
-
-# Restart with new versions
-docker compose up -d
-
-# Verify
-docker compose ps
-```
-
-Database migrations run automatically on API startup.
-
----
-
-## Backups
-
-**Automated daily backups:**
-```bash
-# Included in deployment
-./scripts/backup.sh
-```
-
-Backs up PostgreSQL to `backups/` directory. Configure cron:
-```bash
-0 2 * * * /path/to/barazo-deploy/scripts/backup.sh
-```
-
----
-
-## Documentation
-
-- **Installation Guide:** [docs/installation.md](docs/installation.md)
-- **Configuration Reference:** [docs/configuration.md](docs/configuration.md)
-- **Upgrade Guide:** [docs/upgrading.md](docs/upgrading.md)
-- **Troubleshooting:** [docs/troubleshooting.md](docs/troubleshooting.md)
-- **Backups:** [docs/backups.md](docs/backups.md)
-
----
-
-## Managed Hosting Alternative
-
-Don't want to self-host? Managed hosting available (Phase 3):
-
-- Automatic updates
-- Backups included
-- Custom domain support
-- EU hosting (GDPR-compliant)
-
-See [barazo.forum/pricing](https://barazo.forum/pricing) (coming soon)
+**Recommended VPS:** Hetzner CX22 or higher.
 
 ---
 
 ## License
 
-**MIT** - Self-hosting templates should be freely usable.
+**MIT** -- Self-hosting templates should be freely usable.
 
 ---
 
 ## Related Repositories
 
-- **[barazo-api](https://github.com/barazo-forum/barazo-api)** - Backend (AGPL-3.0)
-- **[barazo-web](https://github.com/barazo-forum/barazo-web)** - Frontend (MIT)
-- **[Organization](https://github.com/barazo-forum)** - All repos
+- **[barazo-api](https://github.com/barazo-forum/barazo-api)** -- Backend (AGPL-3.0)
+- **[barazo-web](https://github.com/barazo-forum/barazo-web)** -- Frontend (MIT)
+- **[barazo-lexicons](https://github.com/barazo-forum/barazo-lexicons)** -- AT Protocol lexicon schemas (MIT)
+- **[Organization](https://github.com/barazo-forum)** -- All repos
 
 ---
 
-## Community
-
-- 🌐 **Website:** [barazo.forum](https://barazo.forum) (coming soon)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/orgs/barazo-forum/discussions)
-- 🐛 **Issues:** [Report bugs](https://github.com/barazo-forum/barazo-deploy/issues)
-
----
-
-© 2026 Barazo. Licensed under MIT.
+(c) 2026 Barazo. Licensed under MIT.
