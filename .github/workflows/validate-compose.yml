@@ -1,0 +1,60 @@
+name: Validate Compose
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate dev compose
+        run: docker compose -f docker-compose.dev.yml config --quiet
+
+      - name: Validate production compose
+        env:
+          POSTGRES_USER: barazo
+          POSTGRES_PASSWORD: ci_test
+          POSTGRES_DB: barazo
+          VALKEY_PASSWORD: ci_test
+          DATABASE_URL: postgresql://barazo:ci_test@postgres:5432/barazo
+          TAP_ADMIN_PASSWORD: ci_test
+          COMMUNITY_DID: did:plc:ci-test
+          COMMUNITY_NAME: CI Test
+          COMMUNITY_DOMAIN: ci.example.com
+          OAUTH_CLIENT_ID: https://ci.example.com
+          OAUTH_REDIRECT_URI: https://ci.example.com/api/auth/callback
+          NEXT_PUBLIC_API_URL: https://ci.example.com/api
+          NEXT_PUBLIC_SITE_URL: https://ci.example.com
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Validate global compose overlay
+        env:
+          POSTGRES_USER: barazo
+          POSTGRES_PASSWORD: ci_test
+          POSTGRES_DB: barazo
+          VALKEY_PASSWORD: ci_test
+          DATABASE_URL: postgresql://barazo:ci_test@postgres:5432/barazo
+          TAP_ADMIN_PASSWORD: ci_test
+          COMMUNITY_DID: did:plc:ci-test
+          COMMUNITY_NAME: CI Test
+          COMMUNITY_DOMAIN: ci.example.com
+          OAUTH_CLIENT_ID: https://ci.example.com
+          OAUTH_REDIRECT_URI: https://ci.example.com/api/auth/callback
+          NEXT_PUBLIC_API_URL: https://ci.example.com/api
+          NEXT_PUBLIC_SITE_URL: https://ci.example.com
+        run: docker compose -f docker-compose.yml -f docker-compose.global.yml config --quiet
+
+      - name: Check shell scripts syntax
+        run: |
+          bash -n scripts/backup.sh
+          bash -n scripts/restore.sh
+          bash -n scripts/smoke-test.sh
