@@ -12,6 +12,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+**Status:** Alpha -- All deployment profiles operational
+
 </div>
 
 ---
@@ -256,6 +258,28 @@ The global override file (`docker-compose.global.yml`) layers on top of the prod
 | **Global Aggregator** | 4 vCPU | 8 GB | 100 GB SSD | 5 TB/month |
 
 **Recommended VPS:** Hetzner CX22 or higher.
+
+---
+
+## Implemented
+
+- Development compose (PostgreSQL + Valkey + Tap)
+- Production compose (full stack with Caddy SSL)
+- Global aggregator compose (higher resource allocation, performance tuning)
+- Environment variable templates (`.env.example`)
+- Backup/restore scripts
+- Smoke test scripts
+- CI/CD compose validation
+- Dependabot security monitoring
+- SECURITY.md responsible disclosure policy
+
+## Planned
+
+- Custom domain automation (Caddy API, for SaaS multi-tenant)
+- Let's Encrypt wildcard certs for managed hosting
+- Monitoring stack (Grafana + Prometheus, Phase 3)
+- PostHog analytics container (Phase 3)
+- Horizontal scaling configuration
 
 ---
 
