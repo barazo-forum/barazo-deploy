@@ -1,0 +1,208 @@
+# Barazo Production Docker Compose -- Single Community
+#
+# Deploys a complete Barazo forum with automatic SSL via Caddy.
+# Only ports 80 and 443 are exposed externally.
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit .env with your domain, passwords, and community settings
+#   docker compose up -d
+#
+# Startup order: postgres -> valkey -> tap -> barazo-api -> barazo-web -> caddy
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 with pgvector (full-text + optional semantic search)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Uncomment to set resource limits:
+    # mem_limit: 1g
+    # cpus: 1.0
+
+  # ---------------------------------------------------------------------------
+  # Valkey 8 (Redis-compatible cache for sessions, rate limiting, queues)
+  # ---------------------------------------------------------------------------
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: >
+      valkey-server
+      --requirepass ${VALKEY_PASSWORD}
+      --rename-command FLUSHALL ""
+      --rename-command FLUSHDB ""
+      --rename-command CONFIG ""
+      --rename-command DEBUG ""
+      --rename-command KEYS ""
+    volumes:
+      - valkeydata:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "${VALKEY_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    # Uncomment to set resource limits:
+    # mem_limit: 512m
+    # cpus: 0.5
+
+  # ---------------------------------------------------------------------------
+  # Tap (AT Protocol firehose consumer -- filters forum.barazo.* records)
+  # ---------------------------------------------------------------------------
+  tap:
+    image: ghcr.io/bluesky-social/indigo/tap:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      TAP_RELAY_URL: ${RELAY_URL:-wss://bsky.network}
+      TAP_SIGNAL_COLLECTION: forum.barazo.topic.post
+      TAP_COLLECTION_FILTERS: forum.barazo.topic.post,forum.barazo.topic.reply,forum.barazo.interaction.reaction
+      TAP_DATABASE_URL: sqlite:///data/tap.db
+      TAP_ADMIN_PASSWORD: ${TAP_ADMIN_PASSWORD}
+    volumes:
+      - tapdata:/data
+    networks:
+      - backend
+    # Uncomment to set resource limits:
+    # mem_limit: 512m
+    # cpus: 0.5
+
+  # ---------------------------------------------------------------------------
+  # Barazo API (AppView backend -- Fastify, REST API, firehose indexing)
+  # ---------------------------------------------------------------------------
+  barazo-api:
+    image: ghcr.io/barazo-forum/barazo-api:${BARAZO_API_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      VALKEY_URL: redis://:${VALKEY_PASSWORD}@valkey:6379
+      RELAY_URL: ${RELAY_URL:-wss://bsky.network}
+      COMMUNITY_DID: ${COMMUNITY_DID}
+      COMMUNITY_NAME: ${COMMUNITY_NAME}
+      COMMUNITY_MODE: ${COMMUNITY_MODE:-single}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI}
+      PLUGINS_ENABLED: ${PLUGINS_ENABLED:-true}
+      PLUGIN_REGISTRY_URL: ${PLUGIN_REGISTRY_URL:-https://registry.npmjs.org}
+      EMBEDDING_URL: ${EMBEDDING_URL:-}
+      AI_EMBEDDING_DIMENSIONS: ${AI_EMBEDDING_DIMENSIONS:-768}
+      AI_ENCRYPTION_KEY: ${AI_ENCRYPTION_KEY:-}
+      FEATURE_CROSSPOST_FRONTPAGE: ${FEATURE_CROSSPOST_FRONTPAGE:-false}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - plugins:/app/plugins
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Uncomment to set resource limits:
+    # mem_limit: 1g
+    # cpus: 1.0
+
+  # ---------------------------------------------------------------------------
+  # Barazo Web (Next.js frontend)
+  # ---------------------------------------------------------------------------
+  barazo-web:
+    image: ghcr.io/barazo-forum/barazo-web:${BARAZO_WEB_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    networks:
+      - frontend
+    depends_on:
+      barazo-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # Uncomment to set resource limits:
+    # mem_limit: 512m
+    # cpus: 0.5
+
+  # ---------------------------------------------------------------------------
+  # Caddy (reverse proxy with automatic SSL via Let's Encrypt)
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    networks:
+      - frontend
+    depends_on:
+      barazo-api:
+        condition: service_healthy
+      barazo-web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # Uncomment to set resource limits:
+    # mem_limit: 256m
+    # cpus: 0.25
+
+# =============================================================================
+# Networks -- two-network segmentation
+# =============================================================================
+#
+# frontend: Caddy, barazo-web, barazo-api (external-facing services)
+# backend:  barazo-api, PostgreSQL, Valkey, Tap (database-connected services)
+#
+# barazo-api bridges both networks. PostgreSQL and Valkey are NOT reachable
+# from Caddy or barazo-web. Only Caddy is exposed externally (ports 80, 443).
+
+networks:
+  frontend:
+  backend:
+
+# =============================================================================
+# Volumes -- persistent data
+# =============================================================================
+
+volumes:
+  pgdata:       # PostgreSQL data (critical -- back up regularly)
+  valkeydata:   # Valkey cache (low priority -- regenerated on restart)
+  tapdata:      # Tap firehose cursor + SQLite DB
+  caddydata:    # SSL certificates (medium priority)
+  caddyconfig:  # Caddy configuration cache
+  plugins:      # Installed plugin npm packages

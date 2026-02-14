@@ -1,0 +1,41 @@
+# Barazo Caddyfile -- Reverse Proxy with Automatic SSL
+#
+# Caddy handles:
+# - Automatic HTTPS via Let's Encrypt (auto-renews)
+# - HTTP -> HTTPS redirect (automatic)
+# - HTTP/3 (QUIC) support
+# - Reverse proxy routing to API and Web services
+#
+# Set COMMUNITY_DOMAIN in your .env file (e.g., "forum.example.com").
+
+{
+	admin off
+}
+
+{$COMMUNITY_DOMAIN} {
+	# Block /api/health/ready from external access (internal monitoring only)
+	@healthReady path /api/health/ready
+	handle @healthReady {
+		respond "Forbidden" 403 {
+			close
+		}
+	}
+
+	# API routes -> barazo-api:3000
+	handle /api/* {
+		reverse_proxy barazo-api:3000
+	}
+
+	# API documentation -> barazo-api:3000
+	handle /docs {
+		reverse_proxy barazo-api:3000
+	}
+	handle /docs/* {
+		reverse_proxy barazo-api:3000
+	}
+
+	# Everything else -> barazo-web:3001
+	handle {
+		reverse_proxy barazo-web:3001
+	}
+}
