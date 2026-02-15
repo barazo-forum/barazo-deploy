@@ -38,7 +38,7 @@ services:
   # Valkey 8 (Redis-compatible cache for sessions, rate limiting, queues)
   # ---------------------------------------------------------------------------
   valkey:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:9-alpine
     restart: unless-stopped
     command: >
       valkey-server
