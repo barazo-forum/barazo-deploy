@@ -1,9 +1,26 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-light.svg">
+  <img alt="Barazo Logo" src="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-dark.svg" width="120">
+</picture>
+
 # Barazo Deploy
 
-Docker Compose templates for self-hosting [Barazo](https://github.com/barazo-forum) -- a federated forum on the AT Protocol.
+**Docker Compose templates for self-hosting Barazo forums.**
 
-![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha-orange)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Validate](https://github.com/barazo-forum/barazo-deploy/actions/workflows/validate-compose.yml/badge.svg)](https://github.com/barazo-forum/barazo-deploy/actions/workflows/validate-compose.yml)
+
+</div>
+
+---
+
+## Overview
+
+Everything you need to self-host a [Barazo](https://github.com/barazo-forum) forum. Includes Docker Compose templates for development, production (single community), and global aggregator deployments. Automatic SSL via Caddy, backup/restore scripts, and network segmentation out of the box.
 
 ---
 
@@ -14,6 +31,8 @@ Docker Compose templates for self-hosting [Barazo](https://github.com/barazo-for
 | `docker-compose.dev.yml` | Local development -- infrastructure services only (PostgreSQL, Valkey, Tap). Run API and Web separately with `pnpm dev`. |
 | `docker-compose.yml` | Production single-community deployment with automatic SSL via Caddy. Full stack. |
 | `docker-compose.global.yml` | Global aggregator override -- layers on top of `docker-compose.yml` with higher resource limits and PostgreSQL tuning for indexing all communities network-wide. |
+
+---
 
 ## Services
 
@@ -28,11 +47,13 @@ Docker Compose templates for self-hosting [Barazo](https://github.com/barazo-for
 
 Production uses two-network segmentation: PostgreSQL and Valkey sit on the `backend` network only and are unreachable from Caddy or the frontend. Only ports 80 and 443 are exposed externally.
 
+---
+
 ## Deployment Modes
 
-### Development
+**Development:**
 
-Infrastructure services only. The API and Web containers are not included -- run those locally with `pnpm dev:api` / `pnpm dev:web`.
+Infrastructure services only. Run API and Web locally with `pnpm dev`.
 
 ```bash
 cp .env.example .env.dev
@@ -41,7 +62,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 Services exposed on the host: PostgreSQL (5432), Valkey (6379), Tap (2480).
 
-### Production -- Single Community
+**Production -- Single Community:**
 
 Full stack deployment for one forum community with automatic SSL.
 
@@ -53,9 +74,9 @@ docker compose up -d
 
 The forum will be available at `https://<COMMUNITY_DOMAIN>` once Caddy obtains the SSL certificate.
 
-### Global Aggregator
+**Global Aggregator:**
 
-Indexes all Barazo communities across the AT Protocol network. Uses the same codebase as single-community mode but with `COMMUNITY_MODE=global` and higher resource allocation.
+Indexes all Barazo communities across the AT Protocol network.
 
 ```bash
 cp .env.example .env
@@ -63,14 +84,14 @@ cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.global.yml up -d
 ```
 
-The global override applies PostgreSQL performance tuning (`shared_buffers`, `effective_cache_size`, `work_mem`) and sets higher memory and CPU limits on all services.
-
 **Minimum requirements:**
 
 | Mode | CPU | RAM | Storage | Bandwidth |
 |------|-----|-----|---------|-----------|
 | Single Community | 2 vCPU | 4 GB | 20 GB SSD | 1 TB/month |
 | Global Aggregator | 4 vCPU | 8 GB | 100 GB SSD | 5 TB/month |
+
+---
 
 ## Scripts
 
@@ -80,23 +101,7 @@ The global override applies PostgreSQL performance tuning (`shared_buffers`, `ef
 | `scripts/restore.sh` | Restores a PostgreSQL backup from a `.sql.gz` or `.sql.gz.age` file. Stops the API and Web during restore, then restarts them. Supports encrypted backups via `BACKUP_PRIVATE_KEY_FILE`. |
 | `scripts/smoke-test.sh` | Validates a running Barazo instance. Checks Docker service health, database connectivity, API endpoints, frontend response, SSL certificate, and HTTPS redirect. Works locally or against a remote URL. |
 
-## Quick Start
-
-```bash
-git clone https://github.com/barazo-forum/barazo-deploy.git
-cd barazo-deploy
-
-# Configure
-cp .env.example .env
-nano .env   # Set domain, passwords, community DID, OAuth
-
-# Start all services
-docker compose up -d
-
-# Verify
-docker compose ps           # All services should show "healthy"
-./scripts/smoke-test.sh     # Run smoke tests
-```
+---
 
 ## Environment Variables
 
@@ -117,6 +122,28 @@ All variables are documented in [`.env.example`](.env.example). Key groups:
 | Monitoring | `GLITCHTIP_DSN`, `LOG_LEVEL` | GlitchTip/Sentry error reporting |
 | Backups | `BACKUP_PUBLIC_KEY` | age public key for encrypted backups |
 
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/barazo-forum/barazo-deploy.git
+cd barazo-deploy
+
+# Configure
+cp .env.example .env
+nano .env   # Set domain, passwords, community DID, OAuth
+
+# Start all services
+docker compose up -d
+
+# Verify
+docker compose ps           # All services should show "healthy"
+./scripts/smoke-test.sh     # Run smoke tests
+```
+
+---
+
 ## Documentation
 
 Detailed guides are in the [`docs/`](docs/) directory:
@@ -127,13 +154,33 @@ Detailed guides are in the [`docs/`](docs/) directory:
 - [Backups](docs/backups.md) -- backup and restore procedures
 - [Upgrading](docs/upgrading.md) -- version upgrade process
 
+---
+
 ## Related Repositories
 
-- [barazo-api](https://github.com/barazo-forum/barazo-api) -- AppView backend (AGPL-3.0)
-- [barazo-web](https://github.com/barazo-forum/barazo-web) -- Forum frontend (MIT)
-- [barazo-lexicons](https://github.com/barazo-forum/barazo-lexicons) -- AT Protocol lexicon schemas (MIT)
-- [barazo-forum](https://github.com/barazo-forum) -- GitHub organization
+| Repository | Description | License |
+|------------|-------------|---------|
+| [barazo-api](https://github.com/barazo-forum/barazo-api) | AppView backend (Fastify, firehose, REST API) | AGPL-3.0 |
+| [barazo-web](https://github.com/barazo-forum/barazo-web) | Forum frontend (Next.js, Tailwind) | MIT |
+| [barazo-lexicons](https://github.com/barazo-forum/barazo-lexicons) | AT Protocol lexicon schemas + generated types | MIT |
+| [barazo-website](https://github.com/barazo-forum/barazo-website) | Marketing + documentation site | MIT |
+
+---
+
+## Community
+
+- **Website:** [barazo.forum](https://barazo.forum)
+- **Discussions:** [GitHub Discussions](https://github.com/orgs/barazo-forum/discussions)
+- **Issues:** [Report bugs](https://github.com/barazo-forum/barazo-deploy/issues)
+
+---
 
 ## License
 
-MIT -- Self-hosting templates should be freely usable.
+**MIT** -- Self-hosting templates should be freely usable.
+
+See [LICENSE](LICENSE) for full terms.
+
+---
+
+(c) 2026 Barazo
