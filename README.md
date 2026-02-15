@@ -1,181 +1,86 @@
-<div align="center">
+# Barazo Deploy
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-light.svg">
-  <img alt="Barazo Logo" src="https://raw.githubusercontent.com/barazo-forum/.github/main/assets/logo-dark.svg" width="120">
-</picture>
+Docker Compose templates for self-hosting [Barazo](https://github.com/barazo-forum) -- a federated forum on the AT Protocol.
 
-# barazo-deploy
-
-**Docker Compose templates for deploying Barazo**
-
+![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Status:** Alpha -- All deployment profiles operational
-
-</div>
-
 ---
 
-## What is this?
+## Docker Compose Templates
 
-Docker Compose configurations and documentation for running Barazo -- a federated forum on the AT Protocol.
+| File | Purpose |
+|------|---------|
+| `docker-compose.dev.yml` | Local development -- infrastructure services only (PostgreSQL, Valkey, Tap). Run API and Web separately with `pnpm dev`. |
+| `docker-compose.yml` | Production single-community deployment with automatic SSL via Caddy. Full stack. |
+| `docker-compose.global.yml` | Global aggregator override -- layers on top of `docker-compose.yml` with higher resource limits and PostgreSQL tuning for indexing all communities network-wide. |
 
-**Available profiles:**
+## Services
 
-| Profile | Use Case | File | Status |
-|---------|----------|------|--------|
-| **Development** | Local dev (infrastructure only) | `docker-compose.dev.yml` | Available |
-| **Single Forum** | One community, production | `docker-compose.yml` | Available |
-| **Global Aggregator** | Cross-community aggregator | `docker-compose.global.yml` | Available |
+| Service | Image | Description |
+|---------|-------|-------------|
+| PostgreSQL 16 | `pgvector/pgvector:pg16` | Primary database with pgvector for full-text and optional semantic search |
+| Valkey 8 | `valkey/valkey:8-alpine` | Redis-compatible cache for sessions, rate limiting, and queues |
+| Tap | `ghcr.io/bluesky-social/indigo/tap:latest` | AT Protocol firehose consumer, filters `forum.barazo.*` records |
+| Barazo API | `ghcr.io/barazo-forum/barazo-api` | AppView backend (Fastify, REST API, firehose indexing) |
+| Barazo Web | `ghcr.io/barazo-forum/barazo-web` | Next.js frontend |
+| Caddy | `caddy:2-alpine` | Reverse proxy with automatic SSL via Let's Encrypt, HTTP/3 support |
 
----
+Production uses two-network segmentation: PostgreSQL and Valkey sit on the `backend` network only and are unreachable from Caddy or the frontend. Only ports 80 and 443 are exposed externally.
 
-## Development Setup
+## Deployment Modes
 
-The dev compose provides infrastructure services for local development of `barazo-api` and `barazo-web`. It does **not** include the API or web containers -- run those separately with `pnpm dev:api` / `pnpm dev:web`.
+### Development
 
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) (v24+) with Docker Compose v2
-- [Node.js](https://nodejs.org/) 24 LTS and [pnpm](https://pnpm.io/) (for running API/web locally)
-
-### Services
-
-| Service | Image | Port | Purpose |
-|---------|-------|------|---------|
-| **postgres** | `pgvector/pgvector:pg16` | 5432 | PostgreSQL 16 with pgvector for full-text and semantic search |
-| **valkey** | `valkey/valkey:8-alpine` | 6379 | Redis-compatible cache for sessions, rate limiting, queues |
-| **tap** | `ghcr.io/bluesky-social/indigo/tap:latest` | 2480 | AT Protocol firehose consumer (filters `forum.barazo.*` records) |
-
-### Quick Start
+Infrastructure services only. The API and Web containers are not included -- run those locally with `pnpm dev:api` / `pnpm dev:web`.
 
 ```bash
-# Clone the deploy repo (or use from monorepo workspace)
-cd barazo-deploy
-
-# Copy environment template
 cp .env.example .env.dev
-
-# Start infrastructure
-docker compose -f docker-compose.dev.yml up -d
-
-# Verify all services are healthy
-docker compose -f docker-compose.dev.yml ps
-```
-
-All three services should show `healthy` status within 30 seconds.
-
-### From the Monorepo Workspace
-
-If using the pnpm workspace at `~/Documents/Git/barazo-forum/`:
-
-```bash
-# Start infrastructure (references barazo-deploy/docker-compose.dev.yml)
-pnpm dev:infra
-
-# Stop infrastructure
-pnpm dev:infra:down
-
-# View logs
-pnpm dev:infra:logs
-```
-
-### Common Commands
-
-```bash
-# Start all services
-docker compose -f docker-compose.dev.yml up -d
-
-# Stop all services (preserves data)
-docker compose -f docker-compose.dev.yml down
-
-# Stop and remove all data volumes
-docker compose -f docker-compose.dev.yml down -v
-
-# View logs (all services)
-docker compose -f docker-compose.dev.yml logs -f
-
-# View logs (single service)
-docker compose -f docker-compose.dev.yml logs -f postgres
-
-# Restart a single service
-docker compose -f docker-compose.dev.yml restart valkey
-
-# Connect to PostgreSQL
-docker compose -f docker-compose.dev.yml exec postgres psql -U barazo
-```
-
-### Environment Variables
-
-All variables have sensible defaults for development. Override them in `.env.dev`:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_USER` | `barazo` | PostgreSQL superuser name |
-| `POSTGRES_PASSWORD` | `barazo_dev` | PostgreSQL superuser password |
-| `POSTGRES_DB` | `barazo` | Database name |
-| `POSTGRES_PORT` | `5432` | Host port for PostgreSQL |
-| `VALKEY_PORT` | `6379` | Host port for Valkey |
-| `TAP_RELAY_URL` | `https://bsky.network` | AT Protocol relay URL |
-| `TAP_PORT` | `2480` | Host port for Tap admin API |
-| `TAP_ADMIN_PASSWORD` | `tap_dev_secret` | Tap admin API password |
-
-See [`.env.example`](.env.example) for the full list including production variables.
-
-### Troubleshooting
-
-**Port already in use:**
-
-If port 5432, 6379, or 2480 is occupied, change the host port mapping in `.env.dev`:
-
-```bash
-POSTGRES_PORT=5433
-VALKEY_PORT=6380
-TAP_PORT=2481
-```
-
-**PostgreSQL won't start:**
-
-Check if an existing volume has incompatible data:
-
-```bash
-docker compose -f docker-compose.dev.yml down -v
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Warning: `-v` deletes all data. Back up first if needed.
+Services exposed on the host: PostgreSQL (5432), Valkey (6379), Tap (2480).
 
-**Tap fails on Apple Silicon:**
+### Production -- Single Community
 
-Tap uses `platform: linux/amd64`. Docker Desktop on Apple Silicon runs it via Rosetta emulation. If it crashes:
-
-1. Verify Docker Desktop has Rosetta enabled (Settings > General > "Use Rosetta")
-2. Restart Docker Desktop
-3. Try again: `docker compose -f docker-compose.dev.yml up -d tap`
-
-**Containers start but API can't connect:**
-
-Verify the services are healthy:
+Full stack deployment for one forum community with automatic SSL.
 
 ```bash
-docker compose -f docker-compose.dev.yml ps
+cp .env.example .env
+# Edit .env: set COMMUNITY_DOMAIN, passwords, COMMUNITY_DID, OAuth settings
+docker compose up -d
 ```
 
-If a service shows `starting` or `unhealthy`, check its logs:
+The forum will be available at `https://<COMMUNITY_DOMAIN>` once Caddy obtains the SSL certificate.
+
+### Global Aggregator
+
+Indexes all Barazo communities across the AT Protocol network. Uses the same codebase as single-community mode but with `COMMUNITY_MODE=global` and higher resource allocation.
 
 ```bash
-docker compose -f docker-compose.dev.yml logs postgres
+cp .env.example .env
+# Edit .env: set COMMUNITY_MODE=global, domain, passwords
+docker compose -f docker-compose.yml -f docker-compose.global.yml up -d
 ```
 
----
+The global override applies PostgreSQL performance tuning (`shared_buffers`, `effective_cache_size`, `work_mem`) and sets higher memory and CPU limits on all services.
 
-## Production Deployment
+**Minimum requirements:**
 
-Deploy a single Barazo community with automatic SSL via Caddy.
+| Mode | CPU | RAM | Storage | Bandwidth |
+|------|-----|-----|---------|-----------|
+| Single Community | 2 vCPU | 4 GB | 20 GB SSD | 1 TB/month |
+| Global Aggregator | 4 vCPU | 8 GB | 100 GB SSD | 5 TB/month |
 
-### Quick Start (Production)
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `scripts/backup.sh` | Creates a compressed PostgreSQL backup with timestamp. Supports optional encryption via [age](https://github.com/FiloSottile/age) (`--encrypt` flag). Automatically cleans up backups older than `BACKUP_RETAIN_DAYS` (default: 7). |
+| `scripts/restore.sh` | Restores a PostgreSQL backup from a `.sql.gz` or `.sql.gz.age` file. Stops the API and Web during restore, then restarts them. Supports encrypted backups via `BACKUP_PRIVATE_KEY_FILE`. |
+| `scripts/smoke-test.sh` | Validates a running Barazo instance. Checks Docker service health, database connectivity, API endpoints, frontend response, SSL certificate, and HTTPS redirect. Works locally or against a remote URL. |
+
+## Quick Start
 
 ```bash
 git clone https://github.com/barazo-forum/barazo-deploy.git
@@ -183,119 +88,52 @@ cd barazo-deploy
 
 # Configure
 cp .env.example .env
-nano .env  # Set domain, passwords, community DID, etc.
+nano .env   # Set domain, passwords, community DID, OAuth
 
-# Start
+# Start all services
 docker compose up -d
 
 # Verify
-docker compose ps        # All services should be "healthy"
-docker compose logs -f   # Watch startup logs
+docker compose ps           # All services should show "healthy"
+./scripts/smoke-test.sh     # Run smoke tests
 ```
 
-Your forum will be available at `https://your-domain.com` once Caddy obtains the SSL certificate (automatic via Let's Encrypt).
+## Environment Variables
 
-### Production Services
+All variables are documented in [`.env.example`](.env.example). Key groups:
 
-| Service | Image | Network | Purpose |
-|---------|-------|---------|---------|
-| **caddy** | `caddy:2-alpine` | frontend | Reverse proxy, automatic SSL (only exposed service: ports 80, 443) |
-| **barazo-api** | `ghcr.io/barazo-forum/barazo-api` | frontend + backend | AppView backend (Fastify, REST API, firehose indexing) |
-| **barazo-web** | `ghcr.io/barazo-forum/barazo-web` | frontend | Next.js frontend |
-| **postgres** | `pgvector/pgvector:pg16` | backend | PostgreSQL 16 with pgvector |
-| **valkey** | `valkey/valkey:8-alpine` | backend | Redis-compatible cache |
-| **tap** | `ghcr.io/bluesky-social/indigo/tap` | backend | AT Protocol firehose consumer |
+| Group | Variables | Notes |
+|-------|-----------|-------|
+| Community Identity | `COMMUNITY_NAME`, `COMMUNITY_DOMAIN`, `COMMUNITY_DID`, `COMMUNITY_MODE` | `COMMUNITY_MODE` is `single` or `global` |
+| Database | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL` | Change default passwords before production use |
+| Cache | `VALKEY_PASSWORD`, `VALKEY_URL` | Password required in production |
+| AT Protocol | `TAP_RELAY_URL`, `TAP_ADMIN_PASSWORD`, `RELAY_URL` | Default relay: `bsky.network` |
+| OAuth | `OAUTH_CLIENT_ID`, `OAUTH_REDIRECT_URI` | Set to your forum's public URL |
+| Frontend | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL` | As seen by the browser |
+| Search | `EMBEDDING_URL`, `AI_EMBEDDING_DIMENSIONS` | Optional semantic search via Ollama or compatible API |
+| Encryption | `AI_ENCRYPTION_KEY` | AES-256-GCM key for BYOK API key encryption at rest |
+| Cross-Posting | `FEATURE_CROSSPOST_FRONTPAGE` | Frontpage cross-posting toggle |
+| Plugins | `PLUGINS_ENABLED`, `PLUGIN_REGISTRY_URL` | Plugin system toggle and registry |
+| Monitoring | `GLITCHTIP_DSN`, `LOG_LEVEL` | GlitchTip/Sentry error reporting |
+| Backups | `BACKUP_PUBLIC_KEY` | age public key for encrypted backups |
 
-Two-network segmentation: PostgreSQL and Valkey are on the `backend` network only, unreachable from Caddy or the frontend.
+## Documentation
 
-### Headless API (No Frontend)
+Detailed guides are in the [`docs/`](docs/) directory:
 
-To run without the frontend container (e.g., custom frontend or API-only access):
-
-```bash
-docker compose up -d postgres valkey tap caddy barazo-api
-```
-
-Update the Caddyfile to remove or adjust the frontend route as needed.
-
----
-
-## Global Aggregator
-
-The global aggregator indexes **all** Barazo communities across the AT Protocol network. It uses the same codebase as a single community but with different configuration and higher resource allocation.
-
-### Differences from Single Community
-
-| Aspect | Single Community | Global Aggregator |
-|--------|-----------------|-------------------|
-| `COMMUNITY_MODE` | `single` | `global` |
-| Indexes | One community's records | All `forum.barazo.*` records network-wide |
-| Features | Standard forum | Cross-community search, reputation aggregation |
-| PostgreSQL | 1 GB RAM | 4 GB RAM (more data) |
-| API | 1 GB RAM | 2 GB RAM (more indexing) |
-| Minimum server | 2 vCPU / 4 GB RAM | 4 vCPU / 8 GB RAM |
-
-### Quick Start (Global Aggregator)
-
-```bash
-cp .env.example .env
-nano .env  # Set COMMUNITY_MODE=global, domain, passwords
-
-# Start with the global override
-docker compose -f docker-compose.yml -f docker-compose.global.yml up -d
-```
-
-The global override file (`docker-compose.global.yml`) layers on top of the production compose to:
-- Set `COMMUNITY_MODE=global` on the API
-- Apply PostgreSQL performance tuning (`shared_buffers`, `effective_cache_size`, `work_mem`)
-- Set higher memory and CPU limits on all services
-
-### Minimum Requirements
-
-| Deployment | CPU | RAM | Storage | Bandwidth |
-|------------|-----|-----|---------|-----------|
-| **Single Forum** | 2 vCPU | 4 GB | 20 GB SSD | 1 TB/month |
-| **Global Aggregator** | 4 vCPU | 8 GB | 100 GB SSD | 5 TB/month |
-
-**Recommended VPS:** Hetzner CX22 or higher.
-
----
-
-## Implemented
-
-- Development compose (PostgreSQL + Valkey + Tap)
-- Production compose (full stack with Caddy SSL)
-- Global aggregator compose (higher resource allocation, performance tuning)
-- Environment variable templates (`.env.example`)
-- Backup/restore scripts
-- Smoke test scripts
-- CI/CD compose validation
-- Dependabot security monitoring
-- SECURITY.md responsible disclosure policy
-
-## Planned
-
-- Custom domain automation (Caddy API, for SaaS multi-tenant)
-- Let's Encrypt wildcard certs for managed hosting
-- Monitoring stack (Grafana + Prometheus, Phase 3)
-- PostHog analytics container (Phase 3)
-- Horizontal scaling configuration
-
----
-
-## License
-
-**MIT** -- Self-hosting templates should be freely usable.
-
----
+- [Installation](docs/installation.md) -- step-by-step setup
+- [Configuration](docs/configuration.md) -- all configuration options
+- [Administration](docs/administration.md) -- managing your forum
+- [Backups](docs/backups.md) -- backup and restore procedures
+- [Upgrading](docs/upgrading.md) -- version upgrade process
 
 ## Related Repositories
 
-- **[barazo-api](https://github.com/barazo-forum/barazo-api)** -- Backend (AGPL-3.0)
-- **[barazo-web](https://github.com/barazo-forum/barazo-web)** -- Frontend (MIT)
-- **[barazo-lexicons](https://github.com/barazo-forum/barazo-lexicons)** -- AT Protocol lexicon schemas (MIT)
-- **[Organization](https://github.com/barazo-forum)** -- All repos
+- [barazo-api](https://github.com/barazo-forum/barazo-api) -- AppView backend (AGPL-3.0)
+- [barazo-web](https://github.com/barazo-forum/barazo-web) -- Forum frontend (MIT)
+- [barazo-lexicons](https://github.com/barazo-forum/barazo-lexicons) -- AT Protocol lexicon schemas (MIT)
+- [barazo-forum](https://github.com/barazo-forum) -- GitHub organization
 
----
+## License
 
-(c) 2026 Barazo. Licensed under MIT.
+MIT -- Self-hosting templates should be freely usable.
