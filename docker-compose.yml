@@ -69,7 +69,7 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     environment:
-      TAP_RELAY_URL: ${RELAY_URL:-wss://bsky.network}
+      TAP_RELAY_URL: ${RELAY_URL:-https://bsky.network}
       TAP_SIGNAL_COLLECTION: forum.barazo.topic.post
       TAP_COLLECTION_FILTERS: forum.barazo.topic.post,forum.barazo.topic.reply,forum.barazo.interaction.reaction
       TAP_DATABASE_URL: sqlite:///data/tap.db
@@ -92,6 +92,9 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       VALKEY_URL: redis://:${VALKEY_PASSWORD}@valkey:6379
+      TAP_URL: http://tap:2480
+      TAP_ADMIN_PASSWORD: ${TAP_ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
       RELAY_URL: ${RELAY_URL:-wss://bsky.network}
       COMMUNITY_DID: ${COMMUNITY_DID}
       COMMUNITY_NAME: ${COMMUNITY_NAME}
@@ -117,7 +120,7 @@ services:
       valkey:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -142,7 +145,7 @@ services:
       barazo-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -157,6 +160,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    environment:
+      COMMUNITY_DOMAIN: ${COMMUNITY_DOMAIN}
     ports:
       - "80:80"
       - "443:443"
