@@ -118,4 +118,4 @@ The first user to complete the setup wizard becomes the community administrator.
 - Verify `DATABASE_URL` password matches `POSTGRES_PASSWORD`
 - Check PostgreSQL logs: `docker compose logs postgres`
 
-See also: [Troubleshooting](https://github.com/barazo-forum/barazo-deploy#troubleshooting) in README.
+See also: [Troubleshooting](administration.md#troubleshooting) in the Administration Guide.
