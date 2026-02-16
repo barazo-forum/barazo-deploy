@@ -13,6 +13,12 @@ on:
         description: "barazo-web branch/tag (default: main)"
         required: false
         default: "main"
+  push:
+    branches: [main]
+    paths:
+      - "docker-compose*.yml"
+      - "Caddyfile"
+      - ".env.example"
 
 env:
   REGISTRY: ghcr.io
@@ -43,6 +49,10 @@ jobs:
             API_REF="${{ github.event.client_payload.api_ref || 'main' }}"
             WEB_REF="${{ github.event.client_payload.web_ref || 'main' }}"
             TRIGGER="${{ github.event.client_payload.trigger_repo || 'manual' }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            API_REF="main"
+            WEB_REF="main"
+            TRIGGER="barazo-deploy"
           else
             API_REF="${{ inputs.api_ref }}"
             WEB_REF="${{ inputs.web_ref }}"
@@ -58,6 +68,21 @@ jobs:
       # ----------------------------------------------------------------------
       - name: Checkout barazo-deploy
         uses: actions/checkout@v4
+
+      - name: Checkout barazo-workspace
+        uses: actions/checkout@v4
+        with:
+          repository: barazo-forum/barazo-workspace
+          path: _workspace
+
+      # Copy workspace root files (lockfile, catalogs) over deploy repo root.
+      # barazo-workspace is the single source of truth for dependency resolution.
+      - name: Sync workspace root files
+        run: |
+          cp _workspace/package.json .
+          cp _workspace/pnpm-lock.yaml .
+          cp _workspace/pnpm-workspace.yaml .
+          rm -rf _workspace
 
       - name: Checkout barazo-lexicons
         uses: actions/checkout@v4
