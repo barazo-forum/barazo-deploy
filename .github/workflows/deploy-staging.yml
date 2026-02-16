@@ -82,6 +82,7 @@ jobs:
           cp _workspace/package.json .
           cp _workspace/pnpm-lock.yaml .
           cp _workspace/pnpm-workspace.yaml .
+          cp _workspace/.npmrc .
           rm -rf _workspace
 
       - name: Checkout barazo-lexicons
