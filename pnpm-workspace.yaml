@@ -1,0 +1,4 @@
+packages:
+  - "barazo-lexicons"
+  - "barazo-api"
+  - "barazo-web"

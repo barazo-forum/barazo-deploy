@@ -1,0 +1,132 @@
+# Staging Environment
+
+**URL:** https://staging.barazo.forum
+**Host:** Hetzner VPS (46.225.136.40)
+**Deploy user:** `deploy`
+**Deploy path:** `/opt/barazo`
+
+## Automated Deployment
+
+Pushes to `main` in `barazo-api` or `barazo-web` automatically trigger a staging deploy.
+
+### Flow
+
+```
+Push to main (api or web)
+  -> repository_dispatch event -> barazo-deploy
+       -> Checkout all repos (deploy, lexicons, api, web)
+       -> Build Docker images (amd64 only)
+       -> Push to ghcr.io/barazo-forum/*
+       -> SSH to staging VPS:
+            1. Save current image digests (for rollback)
+            2. Check .env.example for new required vars
+            3. docker compose pull (api + web only)
+            4. docker compose up -d
+            5. Watch logs for 30s -- grep crash patterns
+            6. Curl health endpoints (API :3000, Web :3001)
+            7. If unhealthy: auto-rollback to previous digests
+```
+
+### Trigger Repos
+
+Both `barazo-api` and `barazo-web` have `.github/workflows/deploy-staging.yml` that fire a `repository_dispatch` event to `barazo-deploy` on push to `main`.
+
+The dispatch payload includes the triggering repo name and the exact commit SHA, so the deploy workflow builds the correct version.
+
+### Manual Trigger
+
+Go to **Actions > Deploy to Staging > Run workflow** in the `barazo-deploy` repo. You can override the API and Web branch/tag refs.
+
+### Rollback Behavior
+
+Before deploying, the workflow saves the current running image digests. If post-deploy checks fail (crash patterns in logs or health endpoints returning non-200), the workflow:
+
+1. Pulls the previously-saved image digests
+2. Tags them as `:latest`
+3. Runs `docker compose up -d` to restore the previous version
+4. Reports the failure in the workflow summary
+
+### Crash Pattern Detection
+
+The log check greps for these patterns (case-insensitive):
+
+- `FATAL`
+- `ECONNREFUSED`
+- `missing env`
+- `ERR_MODULE_NOT_FOUND` / `Cannot find module`
+- `segfault`
+- `OOMKilled`
+
+### Env Var Drift Detection
+
+The workflow compares variable names in `.env.example` against the staging `.env` file. Missing vars are reported as warnings but do not block deployment (they may be optional).
+
+## Required Secrets
+
+| Secret | Scope | Purpose |
+|--------|-------|---------|
+| `STAGING_SSH_KEY` | GitHub org secret | Ed25519 SSH private key for `deploy` user |
+| `DEPLOY_PAT` | GitHub org secret | PAT with `repo` scope for cross-repo dispatch |
+
+### Setting Up Secrets
+
+```bash
+# Generate SSH keypair
+ssh-keygen -t ed25519 -f barazo-staging-deploy -C "github-actions-staging"
+
+# Add public key to VPS
+ssh root@staging.barazo.forum "cat >> /home/deploy/.ssh/authorized_keys" < barazo-staging-deploy.pub
+
+# Add private key as org secret: STAGING_SSH_KEY
+# Create GitHub PAT (repo scope), add as org secret: DEPLOY_PAT
+```
+
+## Deploy User Setup
+
+```bash
+ssh root@staging.barazo.forum
+
+# Create deploy user
+useradd -m -s /bin/bash deploy
+usermod -aG docker deploy
+
+# SSH access
+mkdir -p /home/deploy/.ssh
+chmod 700 /home/deploy/.ssh
+chown -R deploy:deploy /home/deploy/.ssh
+# Add GitHub Actions public key to /home/deploy/.ssh/authorized_keys
+chmod 600 /home/deploy/.ssh/authorized_keys
+
+# Link deploy path
+ln -s /opt/barazo /home/deploy/barazo
+```
+
+## Diagnostics
+
+Use the `/staging-status` Claude Code skill for quick SSH-based triage:
+
+```
+/staging-status
+```
+
+This checks container health, recent logs, disk/memory usage, missing env vars, and image versions.
+
+## Compose Files
+
+Staging uses the overlay pattern:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+```
+
+The staging override (`docker-compose.staging.yml`) sets:
+- `:latest` image tags
+- `NODE_ENV: staging`
+- `LOG_LEVEL: debug`
+- Relaxed rate limits for testing
+
+## Image Tags
+
+Each deploy produces two tags per image:
+- `:latest` -- always points to the most recent staging build
+- `:staging-{run_number}` -- immutable tag for traceability

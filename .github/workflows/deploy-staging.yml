@@ -1,0 +1,300 @@
+name: Deploy to Staging
+
+on:
+  repository_dispatch:
+    types: [deploy-staging]
+  workflow_dispatch:
+    inputs:
+      api_ref:
+        description: "barazo-api branch/tag (default: main)"
+        required: false
+        default: "main"
+      web_ref:
+        description: "barazo-web branch/tag (default: main)"
+        required: false
+        default: "main"
+
+env:
+  REGISTRY: ghcr.io
+  DEPLOY_PATH: /opt/barazo
+  COMPOSE_FILES: "-f docker-compose.yml -f docker-compose.staging.yml"
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 20
+
+    steps:
+      # ----------------------------------------------------------------------
+      # Determine refs (from dispatch payload or manual input)
+      # ----------------------------------------------------------------------
+      - name: Determine checkout refs
+        id: refs
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            API_REF="${{ github.event.client_payload.api_ref || 'main' }}"
+            WEB_REF="${{ github.event.client_payload.web_ref || 'main' }}"
+            TRIGGER="${{ github.event.client_payload.trigger_repo || 'manual' }}"
+          else
+            API_REF="${{ inputs.api_ref }}"
+            WEB_REF="${{ inputs.web_ref }}"
+            TRIGGER="workflow_dispatch"
+          fi
+          echo "api_ref=$API_REF" >> "$GITHUB_OUTPUT"
+          echo "web_ref=$WEB_REF" >> "$GITHUB_OUTPUT"
+          echo "trigger=$TRIGGER" >> "$GITHUB_OUTPUT"
+          echo "::notice::Deploying api@$API_REF web@$WEB_REF (trigger: $TRIGGER)"
+
+      # ----------------------------------------------------------------------
+      # Checkout all repos (public -- no PAT needed)
+      # ----------------------------------------------------------------------
+      - name: Checkout barazo-deploy
+        uses: actions/checkout@v4
+
+      - name: Checkout barazo-lexicons
+        uses: actions/checkout@v4
+        with:
+          repository: barazo-forum/barazo-lexicons
+          path: barazo-lexicons
+
+      - name: Checkout barazo-api
+        uses: actions/checkout@v4
+        with:
+          repository: barazo-forum/barazo-api
+          ref: ${{ steps.refs.outputs.api_ref }}
+          path: barazo-api
+
+      - name: Checkout barazo-web
+        uses: actions/checkout@v4
+        with:
+          repository: barazo-forum/barazo-web
+          ref: ${{ steps.refs.outputs.web_ref }}
+          path: barazo-web
+
+      # ----------------------------------------------------------------------
+      # Docker setup
+      # ----------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----------------------------------------------------------------------
+      # Build and push images (amd64 only for staging)
+      # ----------------------------------------------------------------------
+      - name: Build and push barazo-api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: barazo-api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/barazo-forum/barazo-api:latest
+            ${{ env.REGISTRY }}/barazo-forum/barazo-api:staging-${{ github.run_number }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          platforms: linux/amd64
+
+      - name: Build and push barazo-web
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: barazo-web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/barazo-forum/barazo-web:latest
+            ${{ env.REGISTRY }}/barazo-forum/barazo-web:staging-${{ github.run_number }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          platforms: linux/amd64
+
+      # ----------------------------------------------------------------------
+      # Deploy to staging VPS
+      # ----------------------------------------------------------------------
+      - name: Save current image digests (for rollback)
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        id: save-digests
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "Saving current digests for rollback..."
+            docker inspect --format='{{index .RepoDigests 0}}' $(docker compose ${{ env.COMPOSE_FILES }} ps -q barazo-api 2>/dev/null) 2>/dev/null > /tmp/rollback-api-digest || echo "no-previous-api"
+            docker inspect --format='{{index .RepoDigests 0}}' $(docker compose ${{ env.COMPOSE_FILES }} ps -q barazo-web 2>/dev/null) 2>/dev/null > /tmp/rollback-web-digest || echo "no-previous-web"
+            echo "API digest: $(cat /tmp/rollback-api-digest)"
+            echo "Web digest: $(cat /tmp/rollback-web-digest)"
+
+      - name: Check for new required env vars
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "Checking for new required env vars..."
+            EXAMPLE_VARS=$(grep -v '^#' .env.example | grep -v '^\s*$' | grep '=' | cut -d= -f1 | sort)
+            CURRENT_VARS=$(grep -v '^#' .env | grep -v '^\s*$' | grep '=' | cut -d= -f1 | sort)
+            MISSING=$(comm -23 <(echo "$EXAMPLE_VARS") <(echo "$CURRENT_VARS"))
+            if [ -n "$MISSING" ]; then
+              echo "::warning::New env vars in .env.example not in .env:"
+              echo "$MISSING"
+              echo ""
+              echo "Deploy continues -- these may be optional. Check .env.example for details."
+            else
+              echo "All .env.example vars present in .env"
+            fi
+
+      - name: Pull new images and deploy
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "Pulling latest images..."
+            docker compose ${{ env.COMPOSE_FILES }} pull barazo-api barazo-web
+
+            echo "Starting containers..."
+            docker compose ${{ env.COMPOSE_FILES }} up -d
+
+            echo "Deploy complete at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+      # ----------------------------------------------------------------------
+      # Post-deploy health checks
+      # ----------------------------------------------------------------------
+      - name: Wait for containers to start
+        run: sleep 15
+
+      - name: Check container logs for crash patterns
+        id: log-check
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "Checking logs for crash patterns (last 30s)..."
+
+            LOGS=$(docker compose ${{ env.COMPOSE_FILES }} logs --since 30s barazo-api barazo-web 2>&1)
+            echo "$LOGS"
+
+            CRASH_PATTERNS="FATAL|ECONNREFUSED|missing env|ERR_MODULE_NOT_FOUND|Cannot find module|segfault|OOMKilled"
+            if echo "$LOGS" | grep -iE "$CRASH_PATTERNS"; then
+              echo ""
+              echo "CRASH_DETECTED=true"
+              echo "::error::Crash pattern detected in container logs"
+              exit 1
+            fi
+
+            # Check for containers that exited
+            EXITED=$(docker compose ${{ env.COMPOSE_FILES }} ps --format json 2>/dev/null | grep -i '"exited"' || true)
+            if [ -n "$EXITED" ]; then
+              echo "::error::One or more containers exited unexpectedly"
+              echo "$EXITED"
+              exit 1
+            fi
+
+            echo "No crash patterns detected"
+
+      - name: Verify health endpoints
+        id: health-check
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "Checking health endpoints..."
+
+            # Wait up to 60s for API health
+            for i in $(seq 1 12); do
+              API_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/health 2>/dev/null || echo "000")
+              if [ "$API_STATUS" = "200" ]; then
+                echo "API health: OK (200)"
+                break
+              fi
+              echo "API health: $API_STATUS (attempt $i/12)"
+              sleep 5
+            done
+
+            if [ "$API_STATUS" != "200" ]; then
+              echo "::error::API health check failed after 60s"
+              exit 1
+            fi
+
+            # Check web health
+            WEB_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/health 2>/dev/null || echo "000")
+            if [ "$WEB_STATUS" = "200" ]; then
+              echo "Web health: OK (200)"
+            else
+              echo "::error::Web health check failed: $WEB_STATUS"
+              exit 1
+            fi
+
+            echo "All health checks passed"
+
+      # ----------------------------------------------------------------------
+      # Rollback on failure
+      # ----------------------------------------------------------------------
+      - name: Rollback on failure
+        if: failure() && (steps.log-check.outcome == 'failure' || steps.health-check.outcome == 'failure')
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "::warning::Rolling back to previous images..."
+
+            API_DIGEST=$(cat /tmp/rollback-api-digest 2>/dev/null || echo "")
+            WEB_DIGEST=$(cat /tmp/rollback-web-digest 2>/dev/null || echo "")
+
+            if [ -n "$API_DIGEST" ] && [ "$API_DIGEST" != "no-previous-api" ]; then
+              echo "Rolling back API to: $API_DIGEST"
+              docker pull "$API_DIGEST"
+              docker tag "$API_DIGEST" ghcr.io/barazo-forum/barazo-api:latest
+            fi
+
+            if [ -n "$WEB_DIGEST" ] && [ "$WEB_DIGEST" != "no-previous-web" ]; then
+              echo "Rolling back Web to: $WEB_DIGEST"
+              docker pull "$WEB_DIGEST"
+              docker tag "$WEB_DIGEST" ghcr.io/barazo-forum/barazo-web:latest
+            fi
+
+            docker compose ${{ env.COMPOSE_FILES }} up -d
+            echo "Rollback complete. Waiting for health..."
+            sleep 15
+
+            API_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/health 2>/dev/null || echo "000")
+            echo "Post-rollback API health: $API_STATUS"
+
+      - name: Deploy summary
+        if: success()
+        run: |
+          echo "## Staging Deploy Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger:** ${{ steps.refs.outputs.trigger }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **API ref:** ${{ steps.refs.outputs.api_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Web ref:** ${{ steps.refs.outputs.web_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run:** #${{ github.run_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL:** https://staging.barazo.forum" >> "$GITHUB_STEP_SUMMARY"
