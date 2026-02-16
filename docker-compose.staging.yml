@@ -1,7 +1,7 @@
 # Barazo Staging Docker Compose -- Override
 #
 # Extends docker-compose.yml for the staging environment (staging.barazo.forum).
-# Uses :latest images, debug logging, and relaxed rate limits for testing.
+# Uses :edge images, debug logging, and relaxed rate limits for testing.
 #
 # Usage:
 #   cp .env.staging .env
@@ -17,7 +17,7 @@
 services:
   # Override API for staging
   barazo-api:
-    image: ghcr.io/barazo-forum/barazo-api:latest
+    image: ghcr.io/barazo-forum/barazo-api:edge
     environment:
       NODE_ENV: staging
       LOG_LEVEL: debug
@@ -27,7 +27,7 @@ services:
 
   # Override Web for staging
   barazo-web:
-    image: ghcr.io/barazo-forum/barazo-web:latest
+    image: ghcr.io/barazo-forum/barazo-web:edge
 
   # Staging postgres -- no resource overrides, keep defaults
   # (staging uses smallest Hetzner VPS)

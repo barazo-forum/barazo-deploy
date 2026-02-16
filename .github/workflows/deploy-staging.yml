@@ -102,7 +102,7 @@ jobs:
           file: barazo-api/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/barazo-forum/barazo-api:latest
+            ${{ env.REGISTRY }}/barazo-forum/barazo-api:edge
             ${{ env.REGISTRY }}/barazo-forum/barazo-api:staging-${{ github.run_number }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
@@ -115,7 +115,7 @@ jobs:
           file: barazo-web/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/barazo-forum/barazo-web:latest
+            ${{ env.REGISTRY }}/barazo-forum/barazo-web:edge
             ${{ env.REGISTRY }}/barazo-forum/barazo-web:staging-${{ github.run_number }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
@@ -272,13 +272,13 @@ jobs:
             if [ -n "$API_DIGEST" ] && [ "$API_DIGEST" != "no-previous-api" ]; then
               echo "Rolling back API to: $API_DIGEST"
               docker pull "$API_DIGEST"
-              docker tag "$API_DIGEST" ghcr.io/barazo-forum/barazo-api:latest
+              docker tag "$API_DIGEST" ghcr.io/barazo-forum/barazo-api:edge
             fi
 
             if [ -n "$WEB_DIGEST" ] && [ "$WEB_DIGEST" != "no-previous-web" ]; then
               echo "Rolling back Web to: $WEB_DIGEST"
               docker pull "$WEB_DIGEST"
-              docker tag "$WEB_DIGEST" ghcr.io/barazo-forum/barazo-web:latest
+              docker tag "$WEB_DIGEST" ghcr.io/barazo-forum/barazo-web:edge
             fi
 
             docker compose ${{ env.COMPOSE_FILES }} up -d
