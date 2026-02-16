@@ -44,7 +44,7 @@ All Barazo environment variables with descriptions, defaults, and examples.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes | -- | Public API URL as seen by browsers (e.g., `https://forum.example.com/api`) |
+| `API_INTERNAL_URL` | No | `http://localhost:3000` | Internal API URL for server-side rendering. Set to `http://barazo-api:3000` in Docker. |
 | `NEXT_PUBLIC_SITE_URL` | Yes | -- | Public site URL (e.g., `https://forum.example.com`) |
 
 ## Image Versions

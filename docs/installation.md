@@ -57,7 +57,6 @@ nano .env  # or your preferred editor
 | `DATABASE_URL` | Update the password to match `POSTGRES_PASSWORD` |
 | `OAUTH_CLIENT_ID` | `https://your-domain.com` |
 | `OAUTH_REDIRECT_URI` | `https://your-domain.com/api/auth/callback` |
-| `NEXT_PUBLIC_API_URL` | `https://your-domain.com/api` |
 | `NEXT_PUBLIC_SITE_URL` | `https://your-domain.com` |
 
 Generate passwords with:

@@ -114,7 +114,7 @@ All variables are documented in [`.env.example`](.env.example). Key groups:
 | Cache | `VALKEY_PASSWORD`, `VALKEY_URL` | Password required in production |
 | AT Protocol | `TAP_RELAY_URL`, `TAP_ADMIN_PASSWORD`, `RELAY_URL` | Default relay: `bsky.network` |
 | OAuth | `OAUTH_CLIENT_ID`, `OAUTH_REDIRECT_URI` | Set to your forum's public URL |
-| Frontend | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL` | As seen by the browser |
+| Frontend | `API_INTERNAL_URL`, `NEXT_PUBLIC_SITE_URL` | `API_INTERNAL_URL` for SSR (default: `http://localhost:3000`); browser uses relative URLs |
 | Search | `EMBEDDING_URL`, `AI_EMBEDDING_DIMENSIONS` | Optional semantic search via Ollama or compatible API |
 | Encryption | `AI_ENCRYPTION_KEY` | AES-256-GCM key for BYOK API key encryption at rest |
 | Cross-Posting | `FEATURE_CROSSPOST_FRONTPAGE` | Frontpage cross-posting toggle |

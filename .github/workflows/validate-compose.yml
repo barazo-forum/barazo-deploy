@@ -32,7 +32,6 @@ jobs:
           COMMUNITY_DOMAIN: ci.example.com
           OAUTH_CLIENT_ID: https://ci.example.com
           OAUTH_REDIRECT_URI: https://ci.example.com/api/auth/callback
-          NEXT_PUBLIC_API_URL: https://ci.example.com/api
           NEXT_PUBLIC_SITE_URL: https://ci.example.com
         run: docker compose -f docker-compose.yml config --quiet
 
@@ -49,7 +48,6 @@ jobs:
           COMMUNITY_DOMAIN: ci.example.com
           OAUTH_CLIENT_ID: https://ci.example.com
           OAUTH_REDIRECT_URI: https://ci.example.com/api/auth/callback
-          NEXT_PUBLIC_API_URL: https://ci.example.com/api
           NEXT_PUBLIC_SITE_URL: https://ci.example.com
         run: docker compose -f docker-compose.yml -f docker-compose.global.yml config --quiet
 
