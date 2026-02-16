@@ -1,0 +1,35 @@
+# Barazo Staging Docker Compose -- Override
+#
+# Extends docker-compose.yml for the staging environment (staging.barazo.forum).
+# Uses :latest images, debug logging, and relaxed rate limits for testing.
+#
+# Usage:
+#   cp .env.staging .env
+#   # Edit .env with staging secrets (passwords, DID, etc.)
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Reset staging data:
+#   ./scripts/reset-staging.sh
+#
+# Seed test data:
+#   ./scripts/seed-staging.sh
+
+services:
+  # Override API for staging
+  barazo-api:
+    image: ghcr.io/barazo-forum/barazo-api:latest
+    environment:
+      NODE_ENV: staging
+      LOG_LEVEL: debug
+      # Relaxed rate limits for testing
+      RATE_LIMIT_WINDOW_MS: "60000"
+      RATE_LIMIT_MAX_REQUESTS: "1000"
+
+  # Override Web for staging
+  barazo-web:
+    image: ghcr.io/barazo-forum/barazo-web:latest
+
+  # Staging postgres -- no resource overrides, keep defaults
+  # (staging uses smallest Hetzner VPS)
+
+  # Staging valkey -- no resource overrides
