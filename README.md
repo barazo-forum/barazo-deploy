@@ -49,6 +49,29 @@ Production uses two-network segmentation: PostgreSQL and Valkey sit on the `back
 
 ---
 
+## Image Tags
+
+Barazo API and Web images are published to [GitHub Container Registry](https://github.com/orgs/barazo-forum/packages) (`ghcr.io/barazo-forum/*`).
+
+| Tag | Meaning | When to use |
+|-----|---------|-------------|
+| `:latest` | Latest stable release | **Production.** Self-hosters should pin to this or a specific version. |
+| `:1.0.0`, `:1.0`, `:1` | Semver release tags | **Production.** Pin to a major or minor version for controlled upgrades. |
+| `:edge` | Latest build from `main` | **Staging/testing only.** Rebuilt on every push to `main`. May contain breaking changes. |
+| `:staging-{N}` | Immutable per-build tag | **Debugging.** Trace a specific staging deploy to its build number. |
+| `:sha-{hash}` | Git commit SHA | **Debugging.** Trace an image to its exact source commit. |
+
+**For self-hosters:** Use `:latest` or pin to a semver tag in your `.env`:
+
+```bash
+BARAZO_API_VERSION=1.0.0
+BARAZO_WEB_VERSION=1.0.0
+```
+
+The production `docker-compose.yml` reads these variables (defaults to `latest` if unset).
+
+---
+
 ## Deployment Modes
 
 **Development:**
