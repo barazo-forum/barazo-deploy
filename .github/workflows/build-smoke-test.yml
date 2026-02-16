@@ -1,0 +1,116 @@
+name: Build & Smoke Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  smoke-test:
+    name: Build & Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      POSTGRES_USER: barazo
+      POSTGRES_PASSWORD: ci_smoke_test
+      POSTGRES_DB: barazo
+      VALKEY_PASSWORD: ci_smoke_test
+      DATABASE_URL: postgresql://barazo:ci_smoke_test@postgres:5432/barazo
+      TAP_ADMIN_PASSWORD: ci_smoke_test
+      SESSION_SECRET: ci_session_secret_not_real
+      RELAY_URL: wss://bsky.network
+      COMMUNITY_DID: did:plc:ci-smoke-test
+      COMMUNITY_NAME: CI Smoke Test
+      COMMUNITY_DOMAIN: ":80"
+      COMMUNITY_MODE: single
+      OAUTH_CLIENT_ID: http://localhost
+      OAUTH_REDIRECT_URI: http://localhost/api/auth/callback
+      NEXT_PUBLIC_API_URL: http://localhost/api
+      NEXT_PUBLIC_SITE_URL: http://localhost
+      BARAZO_API_VERSION: latest
+      BARAZO_WEB_VERSION: latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check container image availability
+        id: check-images
+        run: |
+          API_IMAGE="ghcr.io/barazo-forum/barazo-api:${BARAZO_API_VERSION}"
+          WEB_IMAGE="ghcr.io/barazo-forum/barazo-web:${BARAZO_WEB_VERSION}"
+
+          MISSING=false
+          for IMAGE in "$API_IMAGE" "$WEB_IMAGE"; do
+            if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+              echo "::warning::Image not found: $IMAGE"
+              MISSING=true
+            fi
+          done
+
+          if [ "$MISSING" = "true" ]; then
+            echo "::warning::Skipping smoke test -- container images not yet published to ghcr.io"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Start full stack
+        if: steps.check-images.outputs.available == 'true'
+        run: docker compose -f docker-compose.yml up -d
+
+      - name: Wait for services to be healthy
+        if: steps.check-images.outputs.available == 'true'
+        run: |
+          echo "Waiting for all services to become healthy..."
+          TIMEOUT=120
+          ELAPSED=0
+          INTERVAL=5
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            HEALTHY=$(docker compose -f docker-compose.yml ps --format json 2>/dev/null \
+              | grep -c '"Health":"healthy"' || echo "0")
+
+            # postgres, valkey, barazo-api, barazo-web, caddy = 5 services with healthchecks
+            # tap has no healthcheck, so we expect 5 healthy
+            if [ "$HEALTHY" -ge 5 ]; then
+              echo "All services healthy after ${ELAPSED}s"
+              break
+            fi
+
+            echo "  ${HEALTHY}/5 healthy (${ELAPSED}s elapsed)..."
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "Timed out waiting for services to be healthy"
+            docker compose -f docker-compose.yml ps
+            docker compose -f docker-compose.yml logs --tail=50
+            exit 1
+          fi
+
+      - name: Run smoke tests
+        if: steps.check-images.outputs.available == 'true'
+        run: ./scripts/smoke-test.sh http://localhost
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== Service Status ==="
+          docker compose -f docker-compose.yml ps
+          echo ""
+          echo "=== Service Logs ==="
+          docker compose -f docker-compose.yml logs --tail=100
