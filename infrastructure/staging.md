@@ -120,7 +120,7 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 ```
 
 The staging override (`docker-compose.staging.yml`) sets:
-- `:latest` image tags
+- `:edge` image tags (`:latest` is reserved for stable releases)
 - `NODE_ENV: staging`
 - `LOG_LEVEL: debug`
 - Relaxed rate limits for testing
@@ -128,5 +128,7 @@ The staging override (`docker-compose.staging.yml`) sets:
 ## Image Tags
 
 Each deploy produces two tags per image:
-- `:latest` -- always points to the most recent staging build
+- `:edge` -- always points to the most recent staging build
 - `:staging-{run_number}` -- immutable tag for traceability
+
+`:latest` is reserved for stable releases pushed by the `docker.yml` workflow on `v*` tags.
