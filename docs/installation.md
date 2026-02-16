@@ -119,3 +119,74 @@ The first user to complete the setup wizard becomes the community administrator.
 - Check PostgreSQL logs: `docker compose logs postgres`
 
 See also: [Troubleshooting](administration.md#troubleshooting) in the Administration Guide.
+
+## Staging Environment
+
+The staging environment runs at `staging.barazo.forum` and is used for integration testing, OAuth validation, and firehose testing before production deploys. It uses `:latest` Docker images that auto-update on new releases.
+
+### Setup
+
+```bash
+# Clone the repo on your staging VPS
+git clone https://github.com/barazo-forum/barazo-deploy.git
+cd barazo-deploy
+
+# Copy the staging template and fill in secrets
+cp .env.staging .env
+nano .env  # Replace all CHANGE_ME values with real secrets
+```
+
+Generate secrets:
+
+```bash
+openssl rand -base64 24   # For POSTGRES_PASSWORD, VALKEY_PASSWORD, TAP_ADMIN_PASSWORD
+openssl rand -base64 32   # For SESSION_SECRET
+```
+
+### Start Staging
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+```
+
+The staging overlay applies:
+- `:latest` image tags (auto-updates on new releases)
+- `NODE_ENV=staging` and `LOG_LEVEL=debug`
+- Relaxed rate limits for testing
+
+### Seed Test Data
+
+After the first deployment (or after a reset), populate the database with test data:
+
+```bash
+./scripts/seed-staging.sh
+```
+
+This creates 5 categories, 5 test users, 10 topics, and 18 replies. Use `--minimal` to seed only categories.
+
+### Reset Staging
+
+To wipe all staging data and start fresh:
+
+```bash
+./scripts/reset-staging.sh
+```
+
+This drops and recreates the database, flushes the cache, and restarts all services. The API applies migrations automatically on startup. Run `seed-staging.sh` afterward to repopulate test data.
+
+### Smoke Test
+
+```bash
+./scripts/smoke-test.sh https://staging.barazo.forum
+```
+
+### Staging vs. Production Differences
+
+| Setting | Staging | Production |
+|---------|---------|------------|
+| Image tags | `:latest` | Pinned versions (`:2.5.3`) |
+| `NODE_ENV` | `staging` | `production` |
+| `LOG_LEVEL` | `debug` | `info` |
+| Rate limits | Relaxed (1000 req/min) | Standard |
+| Database | `barazo_staging` | `barazo` |
+| SSL | Automatic (Let's Encrypt staging) | Automatic (Let's Encrypt) |
