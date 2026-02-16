@@ -13,6 +13,9 @@
 }
 
 {$COMMUNITY_DOMAIN} {
+	# HSTS -- enforce HTTPS for all future requests (2 years, preload-eligible)
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
 	# Block /api/health/ready from external access (internal monitoring only)
 	@healthReady path /api/health/ready
 	handle @healthReady {
