@@ -23,7 +23,7 @@ Push to main (api or web)
             3. docker compose pull (api + web only)
             4. docker compose up -d
             5. Watch logs for 30s -- grep crash patterns
-            6. Curl health endpoints (API :3000, Web :3001)
+            6. Check Docker healthcheck status (API + Web)
             7. If unhealthy: auto-rollback to previous digests
 ```
 
