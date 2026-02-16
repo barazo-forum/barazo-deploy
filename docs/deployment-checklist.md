@@ -93,7 +93,6 @@ This checklist covers the first production deployment of `barazo.forum`. For sel
   | `SESSION_SECRET` | (generated above) |
   | `OAUTH_CLIENT_ID` | `https://barazo.forum` |
   | `OAUTH_REDIRECT_URI` | `https://barazo.forum/api/auth/callback` |
-  | `NEXT_PUBLIC_API_URL` | `https://barazo.forum/api` |
   | `NEXT_PUBLIC_SITE_URL` | `https://barazo.forum` |
   | `GLITCHTIP_DSN` | (production GlitchTip DSN) |
   | `AI_ENCRYPTION_KEY` | (generated above) |

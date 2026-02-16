@@ -31,7 +31,6 @@ jobs:
       COMMUNITY_MODE: single
       OAUTH_CLIENT_ID: http://localhost
       OAUTH_REDIRECT_URI: http://localhost/api/auth/callback
-      NEXT_PUBLIC_API_URL: http://localhost/api
       NEXT_PUBLIC_SITE_URL: http://localhost
       BARAZO_API_VERSION: latest
       BARAZO_WEB_VERSION: latest
