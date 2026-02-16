@@ -46,10 +46,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check container image availability
+        id: check-images
+        run: |
+          API_IMAGE="ghcr.io/barazo-forum/barazo-api:${BARAZO_API_VERSION}"
+          WEB_IMAGE="ghcr.io/barazo-forum/barazo-web:${BARAZO_WEB_VERSION}"
+
+          MISSING=false
+          for IMAGE in "$API_IMAGE" "$WEB_IMAGE"; do
+            if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+              echo "::warning::Image not found: $IMAGE"
+              MISSING=true
+            fi
+          done
+
+          if [ "$MISSING" = "true" ]; then
+            echo "::warning::Skipping smoke test -- container images not yet published to ghcr.io"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Start full stack
+        if: steps.check-images.outputs.available == 'true'
         run: docker compose -f docker-compose.yml up -d
 
       - name: Wait for services to be healthy
+        if: steps.check-images.outputs.available == 'true'
         run: |
           echo "Waiting for all services to become healthy..."
           TIMEOUT=120
@@ -80,6 +103,7 @@ jobs:
           fi
 
       - name: Run smoke tests
+        if: steps.check-images.outputs.available == 'true'
         run: ./scripts/smoke-test.sh http://localhost
 
       - name: Dump logs on failure
