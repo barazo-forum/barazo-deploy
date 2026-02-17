@@ -17,10 +17,10 @@ jobs:
     name: Scan IaC & Config
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Trivy config scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -29,7 +29,7 @@ jobs:
           output: 'trivy-config.sarif'
 
       - name: Upload to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3
         if: always()
         with:
           sarif_file: 'trivy-config.sarif'
