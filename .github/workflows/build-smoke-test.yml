@@ -29,7 +29,7 @@ jobs:
       COMMUNITY_NAME: CI Smoke Test
       COMMUNITY_DOMAIN: ":80"
       COMMUNITY_MODE: single
-      OAUTH_CLIENT_ID: https://127.0.0.1/client-metadata.json
+      OAUTH_CLIENT_ID: https://ci-smoke.barazo.forum/client-metadata.json
       OAUTH_REDIRECT_URI: http://127.0.0.1/api/auth/callback
       NEXT_PUBLIC_SITE_URL: http://127.0.0.1
       BARAZO_API_VERSION: latest
