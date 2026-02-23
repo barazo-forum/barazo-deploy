@@ -46,7 +46,7 @@ services:
     environment:
       TAP_RELAY_URL: ${TAP_RELAY_URL:-https://bsky.network}
       TAP_SIGNAL_COLLECTION: forum.barazo.topic.post
-      TAP_COLLECTION_FILTERS: forum.barazo.topic.post,forum.barazo.topic.reply,forum.barazo.interaction.reaction
+      TAP_COLLECTION_FILTERS: forum.barazo.topic.post,forum.barazo.topic.reply,forum.barazo.interaction.reaction,forum.barazo.interaction.vote
       TAP_DATABASE_URL: sqlite:///data/tap.db
       TAP_ADMIN_PASSWORD: ${TAP_ADMIN_PASSWORD:-tap_dev_secret}
     volumes:
