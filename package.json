@@ -6,7 +6,6 @@
     "dev:infra": "docker compose -f barazo-deploy/docker-compose.dev.yml up -d",
     "dev:infra:down": "docker compose -f barazo-deploy/docker-compose.dev.yml down",
     "dev:infra:logs": "docker compose -f barazo-deploy/docker-compose.dev.yml logs -f",
-    "dev:seed": "pnpm tsx seed/seed.ts",
     "dev:api": "pnpm --filter barazo-api dev",
     "dev:web": "pnpm --filter barazo-web dev",
     "test": "pnpm -r test",
