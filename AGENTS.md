@@ -53,7 +53,6 @@ Open-source forum software built on the [AT Protocol](https://atproto.com/). Por
 6. **Output sanitization** -- DOMPurify on all user-generated content.
 7. **No raw SQL** -- Drizzle ORM with parameterized queries only.
 8. **Structured logging** -- Pino logger, never `console.log`.
-9. **Accessibility** -- WCAG 2.2 AA, semantic HTML, keyboard navigable.
 
 ### Git Workflow
 
