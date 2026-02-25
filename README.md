@@ -200,7 +200,7 @@ Detailed guides are in the [`docs/`](docs/) directory:
 
 ## License
 
-**MIT** -- Self-hosting templates should be freely usable.
+**MIT**
 
 See [LICENSE](LICENSE) for full terms.
 
