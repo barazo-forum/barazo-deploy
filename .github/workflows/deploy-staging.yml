@@ -304,17 +304,22 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             echo "Verifying login endpoint returns valid redirect URL..."
 
-            # Test via internal Docker network (same as browser -> Caddy -> API)
-            RESPONSE=$(docker compose ${{ env.COMPOSE_FILES }} exec -T barazo-api \
-              wget -qO- "http://localhost:3000/api/auth/login?handle=test.bsky.social" 2>&1 || true)
+            # Retry up to 6 times (30s total) -- API may still be starting after deploy
+            for i in $(seq 1 6); do
+              RESPONSE=$(docker compose ${{ env.COMPOSE_FILES }} exec -T barazo-api \
+                wget -qO- "http://localhost:3000/api/auth/login?handle=test.bsky.social" 2>&1 || true)
 
-            if echo "$RESPONSE" | grep -q '"url"'; then
-              echo "Login endpoint OK: response contains redirect URL"
-            else
-              echo "::warning::Login endpoint did not return expected {url} field"
-              echo "Response: $RESPONSE"
-              echo "This may indicate an OAuth configuration issue"
-            fi
+              if echo "$RESPONSE" | grep -q '"url"'; then
+                echo "Login endpoint OK: response contains redirect URL (attempt $i/6)"
+                exit 0
+              fi
+              echo "Login check attempt $i/6 failed, retrying in 5s..."
+              sleep 5
+            done
+
+            echo "::warning::Login endpoint did not return expected {url} field after 6 attempts"
+            echo "Response: $RESPONSE"
+            echo "This may indicate an OAuth configuration issue"
 
       # ----------------------------------------------------------------------
       # Rollback on failure
