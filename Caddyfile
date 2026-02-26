@@ -24,6 +24,14 @@
 		}
 	}
 
+	# OAuth metadata (AT Protocol requires PDS to fetch these from the client_id origin)
+	handle /oauth-client-metadata.json {
+		reverse_proxy barazo-api:3000
+	}
+	handle /jwks.json {
+		reverse_proxy barazo-api:3000
+	}
+
 	# API routes -> barazo-api:3000
 	handle /api/* {
 		reverse_proxy barazo-api:3000
