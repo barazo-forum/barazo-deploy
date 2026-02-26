@@ -187,13 +187,16 @@ jobs:
             fi
 
       - name: Pull new images and deploy
+        id: deploy
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
         with:
           host: staging.barazo.forum
           username: deploy
           key: ${{ secrets.STAGING_SSH_KEY }}
+          script_stop: true
           script: |
             cd ${{ env.DEPLOY_PATH }}
+
             echo "Pulling latest images..."
             docker compose ${{ env.COMPOSE_FILES }} pull barazo-api barazo-web
 
@@ -289,11 +292,35 @@ jobs:
 
             echo "All health checks passed"
 
+      - name: Verify login endpoint
+        id: login-check
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+        with:
+          host: staging.barazo.forum
+          username: deploy
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "Verifying login endpoint returns valid redirect URL..."
+
+            # Test via internal Docker network (same as browser -> Caddy -> API)
+            RESPONSE=$(docker compose ${{ env.COMPOSE_FILES }} exec -T barazo-api \
+              wget -qO- "http://localhost:3000/api/auth/login?handle=test.bsky.social" 2>&1 || true)
+
+            if echo "$RESPONSE" | grep -q '"url"'; then
+              echo "Login endpoint OK: response contains redirect URL"
+            else
+              echo "::warning::Login endpoint did not return expected {url} field"
+              echo "Response: $RESPONSE"
+              echo "This may indicate an OAuth configuration issue"
+            fi
+
       # ----------------------------------------------------------------------
       # Rollback on failure
       # ----------------------------------------------------------------------
       - name: Rollback on failure
-        if: failure() && (steps.log-check.outcome == 'failure' || steps.health-check.outcome == 'failure')
+        if: failure() && (steps.deploy.outcome == 'failure' || steps.log-check.outcome == 'failure' || steps.health-check.outcome == 'failure')
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
         with:
           host: staging.barazo.forum
