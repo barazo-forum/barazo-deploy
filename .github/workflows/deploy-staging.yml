@@ -156,8 +156,8 @@ jobs:
           host: staging.barazo.forum
           username: deploy
           key: ${{ secrets.STAGING_SSH_KEY }}
-          script_stop: true
           script: |
+            set -e
             cd ${{ env.DEPLOY_PATH }}
             echo "Syncing configuration files from repo (commit ${{ github.sha }})..."
             BASE="https://raw.githubusercontent.com/barazo-forum/barazo-deploy/${{ github.sha }}"
@@ -211,8 +211,8 @@ jobs:
           host: staging.barazo.forum
           username: deploy
           key: ${{ secrets.STAGING_SSH_KEY }}
-          script_stop: true
           script: |
+            set -e
             cd ${{ env.DEPLOY_PATH }}
 
             echo "Pulling latest images..."
@@ -317,15 +317,16 @@ jobs:
           host: staging.barazo.forum
           username: deploy
           key: ${{ secrets.STAGING_SSH_KEY }}
-          script_stop: true
           script: |
+            set -e
             cd ${{ env.DEPLOY_PATH }}
             echo "Verifying login endpoint returns valid redirect URL..."
 
             # Retry up to 6 times (30s total) -- API may still be starting after deploy
+            # Use 127.0.0.1 (not localhost) -- Alpine may not resolve localhost to IPv4
             for i in $(seq 1 6); do
               RESPONSE=$(docker compose ${{ env.COMPOSE_FILES }} exec -T barazo-api \
-                wget -qO- "http://localhost:3000/api/auth/login?handle=test.bsky.social" 2>&1 || true)
+                wget -qO- "http://127.0.0.1:3000/api/auth/login?handle=test.bsky.social" 2>&1 || true)
 
               if echo "$RESPONSE" | grep -q '"url"'; then
                 echo "Login endpoint OK: response contains redirect URL (attempt $i/6)"
