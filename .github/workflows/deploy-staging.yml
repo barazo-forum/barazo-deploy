@@ -324,9 +324,10 @@ jobs:
 
             # Retry up to 6 times (30s total) -- API may still be starting after deploy
             # Use 127.0.0.1 (not localhost) -- Alpine may not resolve localhost to IPv4
+            # Use a real Bluesky handle -- the API resolves the DID via the AT Protocol
             for i in $(seq 1 6); do
               RESPONSE=$(docker compose ${{ env.COMPOSE_FILES }} exec -T barazo-api \
-                wget -qO- "http://127.0.0.1:3000/api/auth/login?handle=test.bsky.social" 2>&1 || true)
+                wget -qO- "http://127.0.0.1:3000/api/auth/login?handle=bsky.app" 2>&1 || true)
 
               if echo "$RESPONSE" | grep -q '"url"'; then
                 echo "Login endpoint OK: response contains redirect URL (attempt $i/6)"
