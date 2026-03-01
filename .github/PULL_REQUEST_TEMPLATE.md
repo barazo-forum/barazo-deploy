@@ -34,7 +34,7 @@ Closes #<!-- issue number -->
 - [ ] No TypeScript errors (`pnpm typecheck`)
 - [ ] No ESLint warnings (`pnpm lint`)
 - [ ] Documentation updated (if applicable)
-- [ ] Database migration included (if schema changed)
+- [ ] Database schema updated (if schema changed)
 - [ ] Breaking changes documented below (if applicable)
 - [ ] CI checks pass
 - [ ] No secrets or credentials in code

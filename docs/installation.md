@@ -171,7 +171,7 @@ To wipe all staging data and start fresh:
 ./scripts/reset-staging.sh
 ```
 
-This drops and recreates the database, flushes the cache, and restarts all services. The API applies migrations automatically on startup. Run `seed-staging.sh` afterward to repopulate test data.
+This drops and recreates the database, flushes the cache, and restarts all services. The schema is applied automatically on startup. Run `seed-staging.sh` afterward to repopulate test data.
 
 ### Smoke Test
 

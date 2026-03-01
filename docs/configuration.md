@@ -20,7 +20,7 @@ All Barazo environment variables with descriptions, defaults, and examples.
 | `POSTGRES_DB` | Yes | -- | Database name |
 | `POSTGRES_PORT` | No | `5432` | Host port mapping (dev compose only) |
 | `DATABASE_URL` | Yes | -- | Connection string for the API. Format: `postgresql://user:pass@postgres:5432/dbname` |
-| `MIGRATION_DATABASE_URL` | No | -- | Connection string for migrations (DDL role, if using role separation) |
+| `MIGRATION_DATABASE_URL` | No | -- | Connection string for schema changes (DDL role, if using role separation). Reserved for beta -- not used in alpha. |
 
 ## Cache (Valkey)
 
