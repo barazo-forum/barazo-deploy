@@ -217,7 +217,7 @@ Barazo uses three PostgreSQL roles with least-privilege access:
 | `barazo_app` | DML (SELECT, INSERT, UPDATE, DELETE) | API server |
 | `barazo_readonly` | SELECT only | Search, public endpoints, reporting |
 
-The API server connects with `barazo_app` -- it cannot modify the schema. During alpha, schema is applied via `drizzle-kit push` at deploy time. In beta, `barazo_migrator` will run proper migrations.
+The API server connects with the database user configured in `DATABASE_URL`. On startup, it runs pending Drizzle migrations using a dedicated single-connection client, then opens the main connection pool. In a future hardening phase, migration will use a separate `barazo_migrator` role with DDL privileges, while `barazo_app` will be restricted to DML only.
 
 ### Connection Security
 
