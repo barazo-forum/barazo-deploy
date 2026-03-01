@@ -18,7 +18,9 @@ docker compose ps
 ./scripts/smoke-test.sh https://your-domain.com
 ```
 
-The database schema is applied via `drizzle-kit push` during deployment. No manual schema step is needed.
+Database migrations are applied automatically when the API container starts. The Drizzle migration runner checks for pending migrations and applies them before accepting requests. No manual schema step is needed.
+
+**Important:** Database migrations are forward-only. If you need to rollback, restore from the pre-upgrade backup.
 
 ## Pinned Version Upgrade
 
@@ -75,5 +77,5 @@ Major version bumps (e.g., 1.x to 2.x) may include breaking changes that require
 
 Common breaking changes to watch for:
 - **Environment variable renames** -- update your `.env` file
-- **Database schema changes** -- schema is pushed on deploy, but rollback may require the backup
+- **Database schema changes** -- migrations run automatically on startup, but rollback requires restoring from the pre-upgrade backup
 - **Caddy configuration changes** -- check if Caddyfile needs updates
