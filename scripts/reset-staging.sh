@@ -11,7 +11,7 @@
 # What it does:
 #   1. Stops API and Web services (keeps postgres/valkey running)
 #   2. Drops and recreates the staging database
-#   3. Restarts all services (API runs migrations on startup)
+#   3. Restarts all services (schema is applied on startup)
 #
 # Environment:
 #   COMPOSE_FILE  Docker Compose files (default: docker-compose.yml -f docker-compose.staging.yml)
@@ -95,7 +95,7 @@ echo "Flushing Valkey cache..."
 # On staging, we restart valkey instead to clear all data.
 $COMPOSE_CMD restart valkey
 
-# Step 4: Restart all services (API runs migrations on startup)
+# Step 4: Restart all services (schema is applied on startup)
 echo "Starting all services..."
 $COMPOSE_CMD up -d
 
@@ -112,6 +112,6 @@ fi
 
 echo ""
 echo "Staging reset complete."
-echo "The API will run database migrations automatically on startup."
+echo "The database schema will be applied automatically on startup."
 echo ""
 echo "To seed test data, run: ./scripts/seed-staging.sh"

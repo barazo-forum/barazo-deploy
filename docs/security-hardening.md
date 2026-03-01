@@ -213,11 +213,11 @@ Barazo uses three PostgreSQL roles with least-privilege access:
 
 | Role | Privileges | Used By |
 |------|-----------|---------|
-| `barazo_migrator` | DDL (CREATE, ALTER, DROP) | Migration scripts only |
+| `barazo_migrator` | DDL (CREATE, ALTER, DROP) | Schema changes (reserved for beta) |
 | `barazo_app` | DML (SELECT, INSERT, UPDATE, DELETE) | API server |
 | `barazo_readonly` | SELECT only | Search, public endpoints, reporting |
 
-The API server connects with `barazo_app` -- it cannot modify the schema. Migrations use `barazo_migrator` and run only during startup.
+The API server connects with `barazo_app` -- it cannot modify the schema. During alpha, schema is applied via `drizzle-kit push` at deploy time. In beta, `barazo_migrator` will run proper migrations.
 
 ### Connection Security
 

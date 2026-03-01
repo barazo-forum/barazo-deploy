@@ -88,7 +88,7 @@ This checklist covers the first production deployment of `barazo.forum`. For sel
   | `POSTGRES_PASSWORD` | (generated above) |
   | `VALKEY_PASSWORD` | (generated above) |
   | `DATABASE_URL` | `postgresql://barazo_app:<POSTGRES_PASSWORD>@postgres:5432/barazo` |
-  | `MIGRATION_DATABASE_URL` | `postgresql://barazo_migrator:<POSTGRES_PASSWORD>@postgres:5432/barazo` |
+  | ~~`MIGRATION_DATABASE_URL`~~ | Not used in alpha. Reserved for beta when migrations are needed. |
   | `TAP_ADMIN_PASSWORD` | (generated above) |
   | `SESSION_SECRET` | (generated above) |
   | `OAUTH_CLIENT_ID` | `https://barazo.forum` |
@@ -234,7 +234,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Database migrations run automatically on API startup. If a migration introduced a breaking change, restore from backup (see [Backup & Restore](backups.md)).
+During alpha, the database schema is rebuilt on deploy. If a schema change causes issues, restore from backup (see [Backup & Restore](backups.md)).
 
 ### Daily Checks
 
