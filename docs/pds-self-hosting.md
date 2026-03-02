@@ -20,7 +20,7 @@ Self-hosting a PDS makes sense in specific scenarios:
 |----------|--------------|
 | **Data sovereignty** | Keep all user data on infrastructure you control |
 | **Air-gapped environments** | Network-restricted deployments that cannot reach `bsky.social` |
-| **Organizational accounts** | Issue AT Protocol identities under your own domain (e.g., `@alice.yourorg.com`) |
+| **Organizational accounts** | Issue AT Protocol identities under your own domain (e.g., `@jay.yourorg.com`) |
 | **Regulatory compliance** | Data residency requirements that prohibit US-hosted PDS providers |
 
 If none of these apply, use the default setup. Users sign up via Bluesky's PDS and it works.
@@ -77,7 +77,7 @@ For detailed instructions, follow the official guide linked above. Do not rely o
 
 **No Barazo-specific configuration is needed.** AT Protocol OAuth handles PDS discovery automatically:
 
-1. A user enters their handle (e.g., `@alice.yourorg.com`)
+1. A user enters their handle (e.g., `@jay.yourorg.com`)
 2. Barazo resolves the handle to a DID
 3. The DID document points to the user's PDS
 4. OAuth proceeds with that PDS
