@@ -9,7 +9,7 @@
 #   ./scripts/seed-staging.sh --minimal      # Seed only categories (faster)
 #
 # What it creates:
-#   - 5 categories (General, Feedback, Development, AT Protocol, Off-Topic)
+#   - 5 top-level categories + 7 subcategories (12 total)
 #   - 5 test users (admin, moderator, 3 members) with known DIDs
 #   - 10 sample topics across categories
 #   - 18 flat replies across topics
@@ -81,19 +81,42 @@ run_psql() {
 echo "Seeding staging database..."
 echo ""
 
-# --- Categories ---
+# --- Categories (with subcategories) ---
 echo "Creating categories..."
 run_psql <<'SQL'
-INSERT INTO categories (id, slug, name, description, sort_order, community_did, maturity_rating, created_at, updated_at)
+-- Top-level categories
+INSERT INTO categories (id, slug, name, description, parent_id, sort_order, community_did, maturity_rating, created_at, updated_at)
 VALUES
-  ('cat-general',     'general',     'General',      'General discussion about anything',               1, :community_did, 'safe', NOW(), NOW()),
-  ('cat-feedback',    'feedback',    'Feedback',     'Feature requests, bug reports, and suggestions',   2, :community_did, 'safe', NOW(), NOW()),
-  ('cat-development', 'development', 'Development',  'Technical discussions about building with Barazo', 3, :community_did, 'safe', NOW(), NOW()),
-  ('cat-atproto',     'atproto',     'AT Protocol',  'AT Protocol ecosystem, standards, and tooling',    4, :community_did, 'safe', NOW(), NOW()),
-  ('cat-off-topic',   'off-topic',   'Off-Topic',    'Casual conversations and community hangout',       5, :community_did, 'safe', NOW(), NOW())
+  ('cat-general',     'general',     'General',      'General discussion about anything',               NULL, 1, :community_did, 'safe', NOW(), NOW()),
+  ('cat-feedback',    'feedback',    'Feedback',     'Feature requests, bug reports, and suggestions',   NULL, 2, :community_did, 'safe', NOW(), NOW()),
+  ('cat-development', 'development', 'Development',  'Technical discussions about building with Barazo', NULL, 3, :community_did, 'safe', NOW(), NOW()),
+  ('cat-atproto',     'atproto',     'AT Protocol',  'AT Protocol ecosystem, standards, and tooling',    NULL, 4, :community_did, 'safe', NOW(), NOW()),
+  ('cat-off-topic',   'off-topic',   'Off-Topic',    'Casual conversations and community hangout',       NULL, 5, :community_did, 'safe', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+-- Subcategories under Development
+INSERT INTO categories (id, slug, name, description, parent_id, sort_order, community_did, maturity_rating, created_at, updated_at)
+VALUES
+  ('cat-dev-frontend', 'frontend', 'Frontend',  'UI, components, and client-side development',  'cat-development', 1, :community_did, 'safe', NOW(), NOW()),
+  ('cat-dev-backend',  'backend',  'Backend',   'API, database, and server-side development',   'cat-development', 2, :community_did, 'safe', NOW(), NOW()),
+  ('cat-dev-infra',    'infra',    'Infrastructure', 'Deployment, Docker, CI/CD, and hosting', 'cat-development', 3, :community_did, 'safe', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+-- Subcategories under Feedback
+INSERT INTO categories (id, slug, name, description, parent_id, sort_order, community_did, maturity_rating, created_at, updated_at)
+VALUES
+  ('cat-fb-features', 'feature-requests', 'Feature Requests', 'Suggest new features and improvements',  'cat-feedback', 1, :community_did, 'safe', NOW(), NOW()),
+  ('cat-fb-bugs',     'bug-reports',      'Bug Reports',      'Report bugs and unexpected behavior',     'cat-feedback', 2, :community_did, 'safe', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+-- Subcategories under AT Protocol
+INSERT INTO categories (id, slug, name, description, parent_id, sort_order, community_did, maturity_rating, created_at, updated_at)
+VALUES
+  ('cat-atp-lexicons', 'lexicons',  'Lexicons',  'Schema definitions and data model discussions',     'cat-atproto', 1, :community_did, 'safe', NOW(), NOW()),
+  ('cat-atp-identity', 'identity',  'Identity',  'DIDs, handles, and portable identity',              'cat-atproto', 2, :community_did, 'safe', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 SQL
-echo "  Categories created."
+echo "  Categories and subcategories created."
 
 if [ "$MINIMAL" = true ]; then
   echo ""
@@ -480,7 +503,7 @@ echo "  Member:    did:plc:staging-member-001    (staging-member.bsky.social)"
 echo "  Member 2:  did:plc:staging-member-002    (staging-member2.bsky.social)"
 echo "  Member 3:  did:plc:staging-member-003    (staging-member3.bsky.social)"
 echo ""
-echo "Categories: general, feedback, development, atproto, off-topic"
+echo "Categories: 5 top-level + 7 subcategories (12 total)"
 echo "Topics: 10 | Flat replies: 18 | Deep thread: 15 replies (depth 1-15)"
 echo ""
 echo "Deep thread topic: 'Self-hosting Barazo on a Raspberry Pi'"
