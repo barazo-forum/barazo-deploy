@@ -30,18 +30,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
-    name: Build & Deploy to Staging
+  # ======================================================================
+  # Job 1: Build and push Docker images to GHCR
+  # ======================================================================
+  build:
+    name: Build Images
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    timeout-minutes: 20
+    timeout-minutes: 15
+    outputs:
+      api_ref: ${{ steps.refs.outputs.api_ref }}
+      web_ref: ${{ steps.refs.outputs.web_ref }}
+      trigger: ${{ steps.refs.outputs.trigger }}
 
     steps:
-      # ----------------------------------------------------------------------
-      # Determine refs (from dispatch payload or manual input)
-      # ----------------------------------------------------------------------
       - name: Determine checkout refs
         id: refs
         run: |
@@ -61,11 +65,11 @@ jobs:
           echo "api_ref=$API_REF" >> "$GITHUB_OUTPUT"
           echo "web_ref=$WEB_REF" >> "$GITHUB_OUTPUT"
           echo "trigger=$TRIGGER" >> "$GITHUB_OUTPUT"
-          echo "::notice::Deploying api@$API_REF web@$WEB_REF (trigger: $TRIGGER)"
+          echo "::notice::Building api@$API_REF web@$WEB_REF (trigger: $TRIGGER)"
 
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       # Checkout all repos (public -- no PAT needed)
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       - name: Checkout barazo-deploy
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -91,6 +95,12 @@ jobs:
           repository: singi-labs/barazo-lexicons
           path: barazo-lexicons
 
+      - name: Checkout barazo-plugins
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: singi-labs/barazo-plugins
+          path: barazo-plugins
+
       - name: Checkout barazo-api
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -105,9 +115,9 @@ jobs:
           ref: ${{ steps.refs.outputs.web_ref }}
           path: barazo-web
 
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       # Docker setup
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -118,9 +128,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       # Build and push images (amd64 only for staging)
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       - name: Build and push barazo-api
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
@@ -147,9 +157,116 @@ jobs:
           cache-to: type=gha,mode=max,scope=web
           platforms: linux/amd64
 
-      # ----------------------------------------------------------------------
-      # Deploy to staging VPS
-      # ----------------------------------------------------------------------
+  # ======================================================================
+  # Job 2: Smoke test -- verify images start and respond to health checks
+  # ======================================================================
+  smoke-test:
+    name: Smoke Test
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 5
+
+    env:
+      POSTGRES_USER: barazo
+      POSTGRES_PASSWORD: ci_smoke_test
+      POSTGRES_DB: barazo
+      VALKEY_PASSWORD: ci_smoke_test
+      DATABASE_URL: postgresql://barazo:ci_smoke_test@postgres:5432/barazo
+      TAP_ADMIN_PASSWORD: ci_smoke_test
+      SESSION_SECRET: ci_session_secret_not_real_extend_to_32
+      RELAY_URL: wss://bsky.network
+      COMMUNITY_DID: did:plc:ci-smoke-test
+      COMMUNITY_NAME: CI Smoke Test
+      COMMUNITY_DOMAIN: ":80"
+      COMMUNITY_MODE: single
+      OAUTH_CLIENT_ID: https://ci-smoke.barazo.forum/client-metadata.json
+      OAUTH_REDIRECT_URI: http://127.0.0.1/api/auth/callback
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1
+      BARAZO_API_VERSION: edge
+      BARAZO_WEB_VERSION: edge
+
+    steps:
+      - name: Checkout barazo-deploy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Login to Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create smoke test fixtures
+        run: |
+          # Empty plugin manifest (no plugins needed for smoke test)
+          echo '[]' > plugins.json
+          # No-op plugin install script
+          printf '#!/bin/sh\nexit 0\n' > scripts/install-plugins.sh
+          chmod +x scripts/install-plugins.sh
+
+      - name: Start full stack
+        run: docker compose -f docker-compose.yml up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to become healthy..."
+          TIMEOUT=120
+          ELAPSED=0
+          INTERVAL=5
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            HEALTHY=$(docker compose -f docker-compose.yml ps --format json 2>/dev/null \
+              | grep -c '"Health":"healthy"' || echo "0")
+
+            # postgres, valkey, barazo-api, barazo-web, caddy = 5 services with healthchecks
+            if [ "$HEALTHY" -ge 5 ]; then
+              echo "All services healthy after ${ELAPSED}s"
+              break
+            fi
+
+            echo "  ${HEALTHY}/5 healthy (${ELAPSED}s elapsed)..."
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "::error::Timed out waiting for services to be healthy"
+            docker compose -f docker-compose.yml ps
+            docker compose -f docker-compose.yml logs --tail=50
+            exit 1
+          fi
+
+      - name: Run smoke tests
+        run: ./scripts/smoke-test.sh
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== Service Status ==="
+          docker compose -f docker-compose.yml ps
+          echo ""
+          echo "=== Service Logs ==="
+          docker compose -f docker-compose.yml logs --tail=100
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
+  # ======================================================================
+  # Job 3: Deploy to staging VPS (only if smoke test passes)
+  # ======================================================================
+  deploy:
+    name: Deploy to Staging
+    needs: [build, smoke-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+
+    steps:
       - name: Sync configuration files to VPS
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
         with:
@@ -226,9 +343,9 @@ jobs:
 
             echo "Deploy complete at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       # Post-deploy health checks
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       - name: Wait for containers to start
         run: sleep 15
 
@@ -344,9 +461,9 @@ jobs:
             echo "Response: $RESPONSE"
             echo "This may indicate an OAuth configuration issue"
 
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       # Rollback on failure
-      # ----------------------------------------------------------------------
+      # ------------------------------------------------------------------
       - name: Rollback on failure
         if: failure() && (steps.deploy.outcome == 'failure' || steps.log-check.outcome == 'failure' || steps.health-check.outcome == 'failure')
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
@@ -385,8 +502,8 @@ jobs:
         run: |
           echo "## Staging Deploy Complete" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Trigger:** ${{ steps.refs.outputs.trigger }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **API ref:** ${{ steps.refs.outputs.api_ref }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Web ref:** ${{ steps.refs.outputs.web_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger:** ${{ needs.build.outputs.trigger }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **API ref:** ${{ needs.build.outputs.api_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Web ref:** ${{ needs.build.outputs.web_ref }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Run:** #${{ github.run_number }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **URL:** https://staging.barazo.forum" >> "$GITHUB_STEP_SUMMARY"
